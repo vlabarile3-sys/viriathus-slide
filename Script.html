@@ -1,0 +1,1947 @@
+
+<script>
+  // ==========================================
+  //  ANIMATION ENGINE (Background) - ES5 Fallback to prevent Auth crashes
+  // ==========================================
+  function Neuron(x, y) {
+    this.x = x; 
+    this.y = y; 
+    this.radius = Math.random() * 1.8 + 1.2;
+    this.activation = 0; 
+    this.neighbors = [];
+    this.speedX = (Math.random() - 0.5) * 0.2; 
+    this.speedY = (Math.random() - 0.5) * 0.2;
+  }
+  
+  Neuron.prototype.fire = function() {
+    if (this.activation > 0.6) return;
+    this.activation = 1.2;
+    if (this.neighbors.length > 0) {
+      pulses.push(new Pulse(this, this.neighbors[Math.floor(Math.random() * this.neighbors.length)]));
+    }
+  };
+  
+  Neuron.prototype.updateConnections = function() {
+    this.neighbors = []; 
+    var potential = [];
+    for (var i = 0; i < neurons.length; i++) {
+      var other = neurons[i];
+      if (this === other) continue;
+      var dx = this.x - other.x;
+      var dy = this.y - other.y;
+      var d = Math.sqrt((dx * dx) + (dy * dy));
+      if (d < connectionDistance) potential.push({ node: other, d: d });
+    }
+    potential.sort(function(a, b) { return a.d - b.d; });
+    var max = Math.min(maxConnections, potential.length);
+    for (var j = 0; j < max; j++) {
+      this.neighbors.push(potential[j].node);
+    }
+  };
+  
+  Neuron.prototype.update = function() {
+    this.activation *= 0.96; 
+    this.x += this.speedX; 
+    this.y += this.speedY;
+    if (this.x < 0 || this.x > width) this.speedX *= -1;
+    if (this.y < 0 || this.y > height) this.speedY *= -1;
+  };
+  
+  Neuron.prototype.draw = function(ctx) {
+    ctx.beginPath(); 
+    var i = Math.min(1, this.activation);
+    var r = 64 + (220 - 64) * i;
+    var g = 75 + (210 - 75) * i;
+    var b = 105 + (166 - 105) * i;
+    ctx.fillStyle = "rgba(" + r.toFixed(0) + "," + g.toFixed(0) + "," + b.toFixed(0) + "," + (0.3+i*0.5) + ")";
+    ctx.shadowColor = "rgba(" + r.toFixed(0) + "," + g.toFixed(0) + "," + b.toFixed(0) + "," + i + ")";
+    ctx.shadowBlur = 10 * i; 
+    ctx.arc(this.x, this.y, this.radius + i * 1.5, 0, Math.PI * 2);
+    ctx.fill(); 
+    ctx.shadowBlur = 0;
+  };
+
+  function Pulse(s, e) { 
+    this.start = s; 
+    this.end = e; 
+    this.progress = 0; 
+    this.speed = 0.02; 
+  }
+  
+  Pulse.prototype.update = function() { 
+    this.progress += this.speed; 
+    if (this.progress >= 1) this.end.fire(); 
+  };
+  
+  Pulse.prototype.draw = function(ctx) {
+    var x = this.start.x + (this.end.x - this.start.x) * this.progress;
+    var y = this.start.y + (this.end.y - this.start.y) * this.progress;
+    ctx.beginPath(); 
+    ctx.fillStyle = 'rgba(220, 210, 166, 0.8)';
+    ctx.shadowColor = 'rgba(220, 210, 166, 1)'; 
+    ctx.shadowBlur = 12;
+    ctx.arc(x, y, 2.8, 0, Math.PI * 2); 
+    ctx.fill(); 
+    ctx.shadowBlur = 0;
+  };
+
+  var canvas, ctx, width, height;
+  var neurons = [];
+  var pulses = [];
+  var frameCount = 0;
+  var neuronCount = 200;
+  var connectionDistance = 120;
+  var maxConnections = 5;
+
+  function initAnimation() {
+    canvas = document.getElementById('network-canvas');
+    if(!canvas) return;
+    ctx = canvas.getContext('2d');
+    width = canvas.width = window.innerWidth; 
+    height = canvas.height = window.innerHeight;
+    neurons = []; 
+    pulses = [];
+    for (var i = 0; i < neuronCount; i++) {
+      neurons.push(new Neuron(Math.random() * width, Math.random() * height));
+    }
+    for (var j = 0; j < neurons.length; j++) {
+      neurons[j].updateConnections();
+    }
+    animate();
+  }
+  
+  function animate() {
+    ctx.clearRect(0, 0, width, height); 
+    frameCount++;
+    if (frameCount % 100 === 0) {
+      for (var i = 0; i < neurons.length; i++) {
+        neurons[i].updateConnections();
+      }
+    }
+    if (pulses.length < 5 && Math.random() < 0.01) {
+      neurons[Math.floor(Math.random() * neurons.length)].fire();
+    }
+    ctx.lineWidth = 0.7;
+    for (var k = 0; k < neurons.length; k++) {
+      var n = neurons[k];
+      var ag = Math.min(0.4, n.activation * 0.5);
+      ctx.strokeStyle = "rgba(64, 75, 105, " + (0.1 + ag) + ")";
+      for (var m = 0; m < n.neighbors.length; m++) {
+        var ne = n.neighbors[m];
+        ctx.beginPath(); 
+        ctx.moveTo(n.x, n.y); 
+        ctx.lineTo(ne.x, ne.y); 
+        ctx.stroke(); 
+      }
+    }
+    for (var p = pulses.length - 1; p >= 0; p--) { 
+      pulses[p].update(); 
+      pulses[p].draw(ctx); 
+      if (pulses[p].progress >= 1) pulses.splice(p, 1); 
+    }
+    for (var q = 0; q < neurons.length; q++) { 
+      neurons[q].update(); 
+      neurons[q].draw(ctx); 
+    }
+    requestAnimationFrame(animate);
+  }
+  
+  window.addEventListener('resize', function() { 
+    if(!canvas) return;
+    width = canvas.width = window.innerWidth; 
+    height = canvas.height = window.innerHeight; 
+  });
+
+  // ==========================================
+  //  UI TOAST NOTIFICATIONS
+  // ==========================================
+  function showToast(msg, type) {
+    let t = type || 'info';
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    toast.className = `toast ${t}`;
+    let icon = 'ℹ️';
+    if (t === 'success') icon = '✅';
+    if (t === 'error') icon = '🚨';
+    toast.innerHTML = `<span class="toast-icon">${icon}</span><span>${msg}</span>`;
+    container.appendChild(toast);
+    
+    setTimeout(() => {
+      toast.classList.add('hiding');
+      setTimeout(() => toast.remove(), 400);
+    }, 3500);
+  }
+
+  // ==========================================
+  //  APP LOGIC AND MULTI-WORKFLOW DATABASE
+  // ==========================================
+
+  const SYSTEM_DEFAULTS = { 
+    "U18": { quality: { tmpl: '1KbyvLzTeyeJO5CeKhXkC4O7HO4S2QDIIReSwTfkgI4U', dest: '1EsoY-9-tJAancz7lUuHZZkkR78gT7lLtj_HBMcF9Qvg' }, pkt: { tmpl: '1JBzDB4txlVTZoCkrDA3yF0lPo5G0yHHjAd9OlD5pw5w', dest: '1LFja57CR2_yEAwKA7P0ypsy19tS_uuM3E2qWEK_pWCw' } },
+    "ST/O18": { quality: { tmpl: '', dest: '' }, pkt: { tmpl: '', dest: '' } },
+    "NPOV": { quality: { tmpl: '', dest: '' }, pkt: { tmpl: '', dest: '' } },
+    "Workspace/WS": { quality: { tmpl: '', dest: '' }, pkt: { tmpl: '', dest: '' } },
+    "OUF": { quality: { tmpl: '', dest: '' }, pkt: { tmpl: '', dest: '' } },
+    "AI Mode": { quality: { tmpl: '', dest: '' }, pkt: { tmpl: '', dest: '' } },
+    "MAGI": { quality: { tmpl: '', dest: '' }, pkt: { tmpl: '', dest: '' } }
+  };
+  
+  let PRESETS = {};
+  let localBugCache = {}; 
+
+  const AUTO_MAP_RULES = { 
+    user: /user|prompt|query|input|topic|domanda/i, 
+    bot: /bot|response|output|answer|model|risposta/i, 
+    explanation: /explanation|logic|reason|verdict|alignment|final aligned|spiegazione|verdetto/i, 
+    description: /note|description|comment|discuss|points|call|dettagli/i 
+  };
+  
+  let state = { 
+    tabs: [], headers: [], fullData: [], cachedSheet: null, 
+    currentPage: 1, totalPages: 1, totalRows: 0, totalFiltered: 0, 
+    cart: [], hiddenColumns: new Set(), slideSignatures: [], 
+    activeFilters: {}, activeFilterCol: null, editingCartIndex: null,
+    activeWorkflow: 'U18' 
+  };
+  
+  let dragSrcIndex = null;
+
+  function extractIdFromUrl(inputStr) { 
+    if (!inputStr) return ""; 
+    const match = inputStr.trim().match(/\/d\/([a-zA-Z0-9-_]+)/); 
+    return match ? match[1] : inputStr.trim(); 
+  }
+
+  // --- CHUNKED LOAD (Memory Safe) ---
+  function loadBugCache() {
+      let startRow = 2; // Row 1 is the header
+      const chunkSize = 300; 
+      
+      const statusEl = document.getElementById('syncStatus');
+      if (statusEl) statusEl.innerText = "Loading Bugs DB...";
+
+      function fetchNextChunk(row) {
+          google.script.run
+            .withSuccessHandler(res => {
+                if (res.data) {
+                    Object.assign(localBugCache, res.data);
+                }
+                if (!res.done) {
+                    if (statusEl) statusEl.innerText = `Loaded ${Object.keys(localBugCache).length} rows...`;
+                    fetchNextChunk(res.nextRow);
+                } else {
+                    if (statusEl) statusEl.innerText = `✅ Database ready. Total: ${Object.keys(localBugCache).length} bugs.`;
+                    if (state.cachedSheet) renderLocalTable();
+                }
+            })
+            .withFailureHandler(err => {
+                console.error("Chunk fetch error:", err);
+                showToast("Error loading the bugs database.", "error");
+            })
+            .getBugCacheChunked(row, chunkSize);
+      }
+      fetchNextChunk(startRow);
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    initAnimation(); 
+    document.getElementById('slideDate').valueAsDate = new Date();
+    
+    const wfElement = document.getElementById('workflowFilter');
+    if(wfElement) state.activeWorkflow = wfElement.value;
+
+    const savedCart = localStorage.getItem('v26_cart_backup');
+    if (savedCart) {
+        try {
+            const parsed = JSON.parse(savedCart);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+                state.cart = parsed;
+                showToast(`Restored ${parsed.length} draft slides.`, 'info');
+            }
+        } catch(e) {}
+    }
+
+    document.addEventListener('input', (e) => {
+        if(e.target.classList.contains('preview-box') && state.cart.length === 1 && state.editingCartIndex === null) {
+            const field = e.target.id.replace('val-', '');
+            state.cart[0][field] = e.target.value;
+            localStorage.setItem('v26_cart_backup', JSON.stringify(state.cart));
+        }
+    });
+
+    loadBugCache(); // Replaces getBugCache to avoid payload errors
+    
+    initSettings(); 
+    setPreset('quality');
+    updateCartUI(); 
+    
+    const savedId = localStorage.getItem('v26_id'); 
+    if(savedId) { 
+        document.getElementById('sourceId').value = savedId; 
+        connectSheet(); 
+    }
+    
+    window.onclick = function(event) { 
+        if (event.target == document.getElementById('inspectorModal')) closeModal('inspectorModal'); 
+        if (event.target == document.getElementById('columnModal')) closeModal('columnModal'); 
+        if (event.target == document.getElementById('settingsModal')) closeModal('settingsModal'); 
+        if (!event.target.closest('.filter-popup') && !event.target.classList.contains('filter-icon')) { 
+            document.getElementById('filterPopup').style.display = 'none'; 
+        } 
+    }
+  });
+
+  function onWorkflowFilterChange() {
+      state.activeWorkflow = document.getElementById('workflowFilter').value;
+      if (state.cachedSheet) {
+          renderLocalTable(); 
+      }
+      const activePresetBtn = document.querySelector('.preset-item.active'); 
+      if (activePresetBtn) setPreset(activePresetBtn.innerText.toLowerCase());
+      showToast(`Filter set to: ${state.activeWorkflow === 'ALL' ? 'All Workflows' : state.activeWorkflow}`, 'success');
+  }
+
+  function loader(show) { 
+      document.getElementById('loader').style.width = show ? '100%' : '0%'; 
+  }
+
+  function initSettings() { 
+    const savedSettings = localStorage.getItem('v26_settings_presets_multi'); 
+    if (savedSettings) { 
+        try { PRESETS = JSON.parse(savedSettings); } 
+        catch(e) { PRESETS = JSON.parse(JSON.stringify(SYSTEM_DEFAULTS)); } 
+    } else { 
+        PRESETS = JSON.parse(JSON.stringify(SYSTEM_DEFAULTS)); 
+    } 
+  }
+
+  function openSettings() { 
+      let wfToLoad = state.activeWorkflow === 'ALL' ? 'U18' : state.activeWorkflow;
+      document.getElementById('settingsWorkflowSelect').value = wfToLoad;
+      loadSettingsForWorkflow(); 
+      document.getElementById('settingsModal').style.display = 'block'; 
+      
+      google.script.run.withSuccessHandler(url => {
+          if(url) {
+              const linkBtn = document.getElementById('dbLinkBtn');
+              linkBtn.href = url;
+              linkBtn.style.display = 'inline-block';
+          }
+      }).getDbUrl();
+      fetchAutoSyncStatus(); 
+  }
+
+  function loadSettingsForWorkflow() {
+      let wf = document.getElementById('settingsWorkflowSelect').value;
+      if(!PRESETS[wf]) PRESETS[wf] = { quality: { tmpl: '', dest: '' }, pkt: { tmpl: '', dest: '' } };
+      
+      document.getElementById('set-qual-tmpl').value = PRESETS[wf].quality.tmpl || ""; 
+      document.getElementById('set-qual-dest').value = PRESETS[wf].quality.dest || ""; 
+      document.getElementById('set-pkt-tmpl').value = PRESETS[wf].pkt.tmpl || ""; 
+      document.getElementById('set-pkt-dest').value = PRESETS[wf].pkt.dest || ""; 
+  }
+
+  function saveSettings() { 
+      let wf = document.getElementById('settingsWorkflowSelect').value;
+      
+      PRESETS[wf].quality.tmpl = extractIdFromUrl(document.getElementById('set-qual-tmpl').value); 
+      PRESETS[wf].quality.dest = extractIdFromUrl(document.getElementById('set-qual-dest').value); 
+      PRESETS[wf].pkt.tmpl = extractIdFromUrl(document.getElementById('set-pkt-tmpl').value); 
+      PRESETS[wf].pkt.dest = extractIdFromUrl(document.getElementById('set-pkt-dest').value); 
+      
+      localStorage.setItem('v26_settings_presets_multi', JSON.stringify(PRESETS)); 
+      
+      if (wf === state.activeWorkflow) {
+          const activePresetBtn = document.querySelector('.preset-item.active'); 
+          if (activePresetBtn) setPreset(activePresetBtn.innerText.toLowerCase()); 
+      }
+      
+      closeModal('settingsModal'); 
+      showToast("Configuration saved for workflow " + wf + ".", "success");
+  }
+
+  function resetSettings() { 
+      if (confirm("Restore default Templates and Destinations for all workflows?")) { 
+          PRESETS = JSON.parse(JSON.stringify(SYSTEM_DEFAULTS)); 
+          localStorage.removeItem('v26_settings_presets_multi'); 
+          loadSettingsForWorkflow(); 
+          showToast("Settings restored.", "info");
+      } 
+  }
+
+  function setPreset(type, event) {
+    if(event) { 
+        document.querySelectorAll('.preset-item').forEach(e => e.classList.remove('active')); 
+        event.target.classList.add('active'); 
+    }
+    
+    let wf = state.activeWorkflow;
+    if (wf === 'ALL') {
+        document.getElementById('templateId').value = ""; 
+        document.getElementById('destId').value = "";
+        state.slideSignatures = []; 
+        checkVisibleRowsForMatches(); 
+        return;
+    }
+
+    if(!PRESETS[wf]) PRESETS[wf] = { quality: { tmpl: '', dest: '' }, pkt: { tmpl: '', dest: '' } };
+
+    const destId = PRESETS[wf][type].dest; 
+    document.getElementById('templateId').value = PRESETS[wf][type].tmpl || ""; 
+    document.getElementById('destId').value = destId || "";
+    state.slideSignatures = []; 
+    checkVisibleRowsForMatches(); 
+    fetchExistingSlides(destId);
+  }
+
+  function fetchAutoSyncStatus() {
+      google.script.run.withSuccessHandler(isActive => {
+          const btn = document.getElementById('autoSyncBtn');
+          if(btn) {
+              btn.dataset.active = isActive ? "true" : "false";
+              if(isActive) {
+                  btn.innerHTML = "🟢 AUTO-SYNC: ON (30 min)";
+                  btn.style.color = "#10b981";
+                  btn.style.borderColor = "rgba(16, 185, 129, 0.4)";
+                  btn.style.background = "rgba(16, 185, 129, 0.1)";
+              } else {
+                  btn.innerHTML = "⚪ AUTO-SYNC: OFF";
+                  btn.style.color = "var(--text-muted)";
+                  btn.style.borderColor = "var(--border-color)";
+                  btn.style.background = "transparent";
+              }
+          }
+      }).withFailureHandler(err => console.warn(err)).getAutoSyncStatus();
+  }
+
+  function toggleAutoSyncUI() {
+      const btn = document.getElementById('autoSyncBtn');
+      const isCurrentlyActive = btn.dataset.active === "true";
+      const newState = !isCurrentlyActive;
+      
+      btn.innerHTML = "⏳ PLEASE WAIT...";
+      btn.disabled = true;
+      
+      google.script.run
+          .withSuccessHandler(res => {
+              btn.disabled = false;
+              fetchAutoSyncStatus(); 
+              showToast(res.msg, res.active ? "success" : "info");
+          })
+          .withFailureHandler(err => {
+              btn.disabled = false;
+              fetchAutoSyncStatus(); 
+              showToast("Permissions error. Authorize the script from the extensions menu for Auto-Sync.", "error");
+          })
+          .toggleAutoSync(newState);
+  }
+
+  function startDbSync() {
+       const btn = document.getElementById('startSyncBtn');
+       const status = document.getElementById('syncStatus');
+       btn.disabled = true;
+       btn.innerText = "SEARCHING...";
+       
+       runSyncBatch(0);
+       
+       function runSyncBatch(offset) {
+          if(status) status.innerText = `🔄 Extracting from Gmail... (Read: ${offset})`;
+          
+          google.script.run
+             .withSuccessHandler(res => {
+                 if (res.done) {
+                    if(status) status.innerText = `✅ Completed! Analyzed: ${res.totalProcessed} Threads. Updating UI...`;
+                    btn.disabled = false;
+                    btn.innerText = "START GLOBAL SYNC";
+                    showToast("Historical database permanently updated!", "success");
+                    loadBugCache(); // Updates DB on screen
+                 } else {
+                    runSyncBatch(res.nextOffset);
+                 }
+             })
+             .withFailureHandler(err => {
+                 if(status) status.innerText = `❌ Crash: restart to resume from ${offset}`;
+                 btn.disabled = false;
+                 btn.innerText = "RETRY SYNC";
+                 showToast(err.message, "error");
+             })
+             .syncBugBatch(offset);
+       }
+  }
+  
+  function fetchExistingSlides(destId) {
+      if(!destId) return;
+      document.getElementById('tableInfo').innerText = "Syncing slides...";
+      google.script.run
+        .withSuccessHandler(res => { 
+            if(res.success) { 
+                state.slideSignatures = res.signatures; 
+                checkVisibleRowsForMatches(); 
+            } 
+        })
+        .withFailureHandler(err => console.warn(err))
+        .getSlideSignatures(destId);
+  }
+  
+  function checkVisibleRowsForMatches() {
+      const hasSignatures = state.slideSignatures && state.slideSignatures.length > 0;
+      const destId = document.getElementById('destId').value;
+      const userColIdx = document.querySelector('.col-map[data-field="user"]')?.value; 
+      const botColIdx = document.querySelector('.col-map[data-field="bot"]')?.value;
+      const rows = document.querySelectorAll('#mainTable tbody tr');
+      
+      rows.forEach(tr => {
+          tr.classList.remove('row-in-deck'); 
+          const rowCell = tr.querySelector('td:nth-child(2)'); 
+          if(rowCell && rowCell.querySelector('a')) { rowCell.innerHTML = rowCell.innerText; }
+          if(!hasSignatures) return; 
+
+          let matchingSlideId = null;
+          const checkChunk = (colIdx) => {
+              if(!colIdx && colIdx !== 0) return false;
+              const cell = tr.querySelector('.col-idx-' + colIdx); 
+              if(!cell) return false;
+              const text = cell.innerText; 
+              if(!text || text.length < 15) return false;
+              const cleanText = text.toLowerCase().replace(/\s+/g, ' ').trim();
+              const chunks = [ 
+                  cleanText.substring(0, 100), 
+                  cleanText.substring(Math.floor(cleanText.length / 2), Math.floor(cleanText.length / 2) + 100) 
+              ];
+              for(let chunk of chunks) { 
+                  if(chunk.length < 20) continue; 
+                  const match = state.slideSignatures.find(s => s.text.includes(chunk)); 
+                  if (match) { matchingSlideId = match.id; return true; } 
+              }
+              return false;
+          };
+
+          if (checkChunk(userColIdx) || checkChunk(botColIdx)) { 
+              tr.classList.add('row-in-deck'); 
+              if(matchingSlideId) { 
+                  const deepLink = "https://docs.google.com/presentation/d/" + destId + "/edit#slide=id." + matchingSlideId; 
+                  const linkHtml = `<a href="${deepLink}" target="_blank" class="slide-link" title="Open Slide">${rowCell.innerText} <svg viewBox="0 0 24 24" fill="currentColor" width="12px" height="12px"><path d="M14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3m-2 16H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7z"/></svg></a>`; 
+                  rowCell.innerHTML = linkHtml; 
+              } 
+          }
+      });
+  }
+
+  function connectSheet() {
+    const id = extractIdFromUrl(document.getElementById('sourceId').value); 
+    document.getElementById('sourceId').value = id; 
+    
+    if(!id) return; 
+    loader(true); 
+    localStorage.setItem('v26_id', id);
+    
+    google.script.run
+        .withSuccessHandler(res => { 
+            loader(false); 
+            if(res.success) { 
+                state.tabs = res.metadata; 
+                const sel = document.getElementById('tabSelect'); 
+                sel.innerHTML = '<option value="">-- Select Sheet --</option>'; 
+                res.metadata.forEach((m,i) => sel.innerHTML += `<option value="${i}">${m.name}</option>`); 
+                document.getElementById('configArea').style.display = 'block'; 
+                showToast("Sheet connected.", "success");
+            } else {
+                showToast("Error: " + res.error, "error"); 
+            }
+        })
+        .withFailureHandler(err => { loader(false); showToast(err.message, "error"); })
+        .getSheetMetadata(id);
+  }
+
+  function onTabChange(isUserAction) {
+    const idx = document.getElementById('tabSelect').value; 
+    if(idx === "") return;
+    
+    const tabName = state.tabs[idx].name; 
+    const ssId = document.getElementById('sourceId').value;
+    state.activeFilters = {}; 
+    state.cachedSheet = null; 
+    
+    const key = "v26_hidden_" + ssId + "_" + tabName.replace(/[^a-zA-Z0-9]/g, '_');
+    state.hiddenColumns = localStorage.getItem(key) ? new Set(JSON.parse(localStorage.getItem(key))) : new Set();
+    applyColumnVisibility(); 
+    loader(true);
+
+    google.script.run
+        .withSuccessHandler(res => { 
+            loader(false); 
+            if(res.success && res.config) { 
+                document.getElementById('headerRow').value = res.config.headerRow || 1; 
+                state.pendingMap = res.config.mapping; 
+            } else { 
+                document.getElementById('headerRow').value = 1; 
+                state.pendingMap = null; 
+            } 
+            
+            if(isUserAction) fetchHeaders(true); 
+            else fetchHeaders(false); 
+        })
+        .withFailureHandler(err => { loader(false); })
+        .loadSheetConfig({ spreadsheetId: ssId, sheetName: tabName });
+  }
+
+  function onHeaderRowChange() { 
+      state.currentPage = 1; 
+      state.cachedSheet = null; 
+      saveCurrentConfig(); 
+      fetchHeaders(false); 
+  }
+  
+  function onMappingChange() { 
+      saveCurrentConfig(); 
+      setTimeout(checkVisibleRowsForMatches, 500); 
+  }
+  
+  function saveCurrentConfig() { 
+      const idx = document.getElementById('tabSelect').value; 
+      if(idx === "") return; 
+      
+      const mapping = {}; 
+      document.querySelectorAll('.col-map').forEach(s => mapping[s.dataset.field] = s.value); 
+      
+      google.script.run
+        .saveSheetConfig({ 
+          spreadsheetId: document.getElementById('sourceId').value, 
+          sheetName: state.tabs[idx].name, 
+          headerRow: document.getElementById('headerRow').value, 
+          mapping: mapping 
+        }); 
+  }
+
+  function fetchHeaders(jumpToLast = false) {
+    const idx = document.getElementById('tabSelect').value; 
+    if(idx === "" || !state.tabs[idx]) return; 
+    loader(true);
+    
+    google.script.run
+        .withSuccessHandler(res => { 
+            if(res.success) { 
+                state.headers = res.headers; 
+                updateMaps(); 
+                loadTable(jumpToLast ? -1 : state.currentPage); 
+            } 
+        })
+        .withFailureHandler(err => { loader(false); showToast("Error fetching Headers.", "error"); })
+        .getSheetHeaders({ 
+            spreadsheetId: document.getElementById('sourceId').value, 
+            sheetName: state.tabs[idx].name, 
+            headerRow: document.getElementById('headerRow').value 
+        });
+  }
+
+  function updateMaps() {
+    const mapToUse = state.pendingMap || {}; 
+    document.querySelectorAll('.col-map').forEach(sel => {
+      const field = sel.dataset.field; 
+      let savedValue = mapToUse[field];
+      
+      if (!savedValue) { 
+          const rule = AUTO_MAP_RULES[field]; 
+          if(rule) { 
+              const match = state.headers.find(h => rule.test(h.name)); 
+              if(match) savedValue = match.index; 
+          } 
+      }
+      
+      sel.innerHTML = '<option value="">-- Skip --</option>'; 
+      state.headers.forEach(h => { 
+          const isSel = (h.index == savedValue) ? 'selected' : ''; 
+          sel.innerHTML += `<option value="${h.index}" ${isSel}>${h.name}</option>`; 
+      });
+    });
+    state.pendingMap = null;
+  }
+
+  function loadTable(targetPage = null, flashRowId = null, specificRowId = null) {
+    const idx = document.getElementById('tabSelect').value; 
+    if(idx === "") return; 
+    const currentTabName = state.tabs[idx].name;
+
+    if (state.cachedSheet === currentTabName) { 
+        renderLocalTable(targetPage, flashRowId, specificRowId); 
+    } else {
+        const tbody = document.getElementById('tBody'); 
+        document.getElementById('tableInfo').innerText = "Downloading...";
+        tbody.innerHTML = '<tr><td colspan="100" style="text-align:center; padding:40px; color:var(--primary-accent);">Downloading full sheet for ultra-fast performance...</td></tr>'; 
+        loader(true);
+        
+        google.script.run
+            .withSuccessHandler(res => { 
+                loader(false); 
+                if(res.success) { 
+                    state.fullData = res.data; 
+                    state.cachedSheet = currentTabName; 
+                    renderLocalTable(targetPage, flashRowId, specificRowId); 
+                } else {
+                    tbody.innerHTML = `<tr><td colspan="100" style="text-align:center; padding:40px; color:#f87171;">Error: ${res.error}</td></tr>`;
+                    showToast(res.error, "error");
+                }
+            })
+            .withFailureHandler(err => { 
+                loader(false); 
+                tbody.innerHTML = `<tr><td colspan="100" style="text-align:center; padding:40px; color:#f87171;">Server Error: ${err.message}</td></tr>`;
+                showToast(err.message, "error");
+            })
+            .fetchFullSheetData({ 
+                spreadsheetId: document.getElementById('sourceId').value, 
+                sheetName: currentTabName, 
+                headerRow: document.getElementById('headerRow').value 
+            });
+    }
+  }
+
+  function forceRefresh() { 
+      state.cachedSheet = null; 
+      showToast("Updating data...", "info");
+      loadTable(); 
+  }
+
+  function renderLocalTable(targetPage = null, flashRowId = null, specificRowId = null) {
+      const idx = document.getElementById('tabSelect').value; 
+      const currentTabName = state.tabs[idx].name;
+      const limit = 50; 
+      let filteredData = state.fullData;
+
+      if (specificRowId) {
+          filteredData = filteredData.filter(r => r.realRowIndex == specificRowId);
+      } else if (Object.keys(state.activeFilters).length > 0) {
+          filteredData = filteredData.filter(item => { 
+              return Object.keys(state.activeFilters).every(colIndex => { 
+                  const allowedValues = state.activeFilters[colIndex]; 
+                  let cellValue = item.cells[parseInt(colIndex)]; 
+                  cellValue = (cellValue === undefined || cellValue === null) ? "" : cellValue.toString(); 
+                  return allowedValues.length === 0 || allowedValues.includes(cellValue); 
+              }); 
+          });
+      }
+
+      const totalFiltered = filteredData.length; 
+      const totalPages = Math.ceil(totalFiltered / limit) || 1;
+      let page = targetPage !== null ? targetPage : state.currentPage;
+      
+      if (page === -1) page = totalPages; 
+      if (page > totalPages) page = totalPages; 
+      if (page < 1) page = 1;
+      
+      state.currentPage = page; 
+      state.totalPages = totalPages; 
+      state.totalFiltered = totalFiltered;
+
+      const pagedData = filteredData.slice((page - 1) * limit, ((page - 1) * limit) + limit);
+      const thead = document.getElementById('tHead'); 
+      const tbody = document.getElementById('tBody'); 
+      const infoSpan = document.getElementById('tableInfo');
+
+      thead.innerHTML = '<th style="width:60px">Add</th><th style="width:60px">Row</th>';
+      state.headers.forEach(h => {
+          const isActive = state.activeFilters[h.index] && state.activeFilters[h.index].length > 0;
+          thead.innerHTML += `<th class="col-idx-${h.index}"><div class="th-content"><span>${h.name}</span><span class="filter-icon ${isActive?'active':''}" onclick="openFilterMenu(event, ${h.index})">${isActive?'▼':'▽'}</span></div></th>`;
+          
+          if (h.name.toLowerCase().includes("bug id")) { 
+              thead.innerHTML += '<th style="color:var(--primary-accent)">✉️ Buganizer Sync (Auto)</th>'; 
+          }
+      });
+
+      if (specificRowId) {
+          infoSpan.innerHTML = `<span style="color:var(--primary-accent); font-weight:700;">SEARCH RESULT (Row ${specificRowId})</span>`;
+      } else {
+          infoSpan.innerHTML = `Page <span style="color:var(--text-main)">${state.currentPage}</span> of ${state.totalPages} &bull; Total: <span style="color:var(--text-main)">${totalFiltered}</span>`;
+      }
+
+      tbody.innerHTML = '';
+      if(pagedData.length > 0) {
+        pagedData.forEach(r => {
+          const tr = document.createElement('tr');
+          if(flashRowId && r.realRowIndex == flashRowId) tr.classList.add('flash-animate'); 
+          
+          const isInCart = state.cart.some(item => item.sourceSheet === currentTabName && item.sourceRow === r.realRowIndex);
+          if(isInCart) tr.classList.add('row-selected'); 
+          
+          tr.id = 'row-' + r.realRowIndex;
+          let html = `<td><input type="checkbox" class="neon-checkbox" onclick="toggleRow(${r.realRowIndex}, '${currentTabName}', this)" ${isInCart?'checked':''}></td><td style="color:var(--primary-accent); font-weight:700;">${r.realRowIndex}</td>`;
+          
+          for (let colIdx = 0; colIdx < state.headers.length; colIdx++) {
+            let c = r.cells[colIdx]; 
+            c = (c === undefined || c === null) ? "" : c;
+            let cleanContent = c.toString().replace(/"/g, '&quot;');
+            
+            if (state.headers[colIdx].name.toLowerCase().includes("bug id")) {
+                let bugIdMatch = cleanContent.match(/b\/(\d+)/);
+                let ghostHtml = "<i style='opacity:0.4'>No trace found</i>";
+                let rawId = bugIdMatch ? bugIdMatch[1] : '';
+                
+                if (rawId && localBugCache[rawId]) {
+                    const cacheData = localBugCache[rawId];
+                    
+                    // MULTI-TAG FILTER: Using .includes()
+                    if (state.activeWorkflow === 'ALL' || (cacheData.workflow && cacheData.workflow.includes(state.activeWorkflow))) {
+                        let updatesCount = cacheData.comments.length;
+                        let wfBadge = `<span style="background:rgba(255,255,255,0.1); color:#fff; padding:2px 4px; border-radius:4px; font-size:0.6rem; margin-right:8px; font-weight:bold;">${cacheData.workflow || 'U18'}</span>`;
+                        
+                        ghostHtml = `
+                          <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+                            <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${wfBadge}${cacheData.subject}</span>
+                            <span style="background:rgba(220, 210, 166, 0.15); color:var(--primary-accent); padding:2px 6px; border-radius:4px; font-size:0.7rem; font-weight:bold; flex-shrink:0;">${updatesCount} updates</span>
+                          </div>`;
+                    }
+                }
+                
+                cleanContent = cleanContent.replace(/\bb\/\d+/gi, (match) => { 
+                    return `<a href="http://${match}" target="_blank" style="color:var(--primary-accent); text-decoration:underline; font-weight:bold;" onclick="event.stopPropagation()">${match}</a>`; 
+                });
+                
+                html += `<td class="col-idx-${colIdx}" onclick="openInspector(this.innerText)">${cleanContent}</td>`;
+                html += `<td style="font-size:0.75rem; color:var(--primary-accent); max-width:250px; cursor:pointer;" title="Click to expand the thread" onclick="openBugInspector('${rawId}')">${ghostHtml}</td>`;
+                continue;
+            }
+
+            cleanContent = cleanContent.replace(/\bb\/\d+/gi, (match) => { 
+                return `<a href="http://${match}" target="_blank" style="color:var(--primary-accent); text-decoration:underline; font-weight:bold;" onclick="event.stopPropagation()">${match}</a>`; 
+            });
+            
+            html += `<td class="col-idx-${colIdx}" onclick="openInspector(this.innerText)">${cleanContent}</td>`;
+          }
+          
+          tr.innerHTML = html; 
+          tbody.appendChild(tr);
+        });
+        
+        checkVisibleRowsForMatches(); 
+        applyColumnVisibility();
+        
+        if(flashRowId) { 
+            setTimeout(() => { 
+                const el = document.getElementById('row-' + flashRowId); 
+                if(el) el.scrollIntoView({behavior: "smooth", block: "center"}); 
+            }, 300); 
+        }
+      } else {
+          tbody.innerHTML = '<tr><td colspan="100" style="text-align:center; padding:40px;">No matching data found.</td></tr>';
+      }
+  }
+
+  function openFilterMenu(e, colIndex) {
+      e.stopPropagation(); 
+      const popup = document.getElementById('filterPopup'); 
+      state.activeFilterCol = colIndex;
+      const rect = e.target.getBoundingClientRect(); 
+      
+      popup.style.top = (rect.bottom + 5) + 'px'; 
+      popup.style.left = Math.min(window.innerWidth - 260, rect.left) + 'px'; 
+      popup.style.display = 'flex';
+      
+      const list = document.getElementById('filterList'); 
+      const uniqueVals = new Set();
+      
+      state.fullData.forEach(r => { 
+          let val = r.cells[colIndex]; 
+          uniqueVals.add((val === undefined || val === null) ? "" : val.toString()); 
+      });
+      
+      const sortedVals = Array.from(uniqueVals).sort();
+      list.innerHTML = ''; 
+      const currentFilters = state.activeFilters[colIndex] || [];
+      
+      sortedVals.forEach(val => { 
+          const isChecked = currentFilters.length === 0 || currentFilters.includes(val); 
+          list.innerHTML += `
+            <div class="filter-item">
+                <input type="checkbox" class="neon-checkbox f-cb" value="${val}" ${isChecked?'checked':''}>
+                <span>${val === ''?'<i>(Empty)</i>':val}</span>
+            </div>`; 
+      });
+  }
+  
+  function applyFilter(selectAll) { 
+      document.querySelectorAll('.f-cb').forEach(cb => cb.checked = selectAll); 
+  }
+  
+  function confirmFilter() { 
+      const selected = []; 
+      let allChecked = true; 
+      
+      document.querySelectorAll('.f-cb').forEach(cb => { 
+          if(cb.checked) selected.push(cb.value); 
+          else allChecked = false; 
+      }); 
+      
+      if(allChecked) {
+          delete state.activeFilters[state.activeFilterCol]; 
+      } else {
+          state.activeFilters[state.activeFilterCol] = selected; 
+      }
+      
+      document.getElementById('filterPopup').style.display = 'none'; 
+      renderLocalTable(-1); 
+  }
+
+  function changePage(dir) { 
+      const newPage = state.currentPage + dir; 
+      if(newPage < 1 || newPage > state.totalPages) return; 
+      state.currentPage = newPage; 
+      renderLocalTable(); 
+  }
+
+  function openColumnManager() {
+      const list = document.getElementById('colManagerList'); 
+      list.innerHTML = '';
+      
+      state.headers.forEach(h => { 
+          const isVisible = !state.hiddenColumns.has(h.index); 
+          list.innerHTML += `
+            <div class="col-toggle-item">
+                <input type="checkbox" class="neon-checkbox" onchange="toggleColumnState(${h.index}, this.checked)" ${isVisible?'checked':''}>
+                <span class="col-label" title="${h.name}">${h.name}</span>
+            </div>`; 
+      });
+      
+      document.getElementById('columnModal').style.display = 'block';
+  }
+
+  function toggleColumnState(index, isVisible) { 
+      if (isVisible) {
+          state.hiddenColumns.delete(index); 
+      } else {
+          state.hiddenColumns.add(index); 
+      }
+      
+      applyColumnVisibility(); 
+      const idx = document.getElementById('tabSelect').value; 
+      
+      if(idx !== "") { 
+          const key = "v26_hidden_" + document.getElementById('sourceId').value + "_" + state.tabs[idx].name.replace(/[^a-zA-Z0-9]/g, '_'); 
+          localStorage.setItem(key, JSON.stringify(Array.from(state.hiddenColumns))); 
+      } 
+  }
+
+  function toggleAllColumns(show) { 
+      document.querySelectorAll('#colManagerList input[type="checkbox"]').forEach(cb => { 
+          cb.checked = show; 
+          cb.dispatchEvent(new Event('change')); 
+      }); 
+  }
+  
+  function applyColumnVisibility() { 
+      const styleEl = document.getElementById('dynamic-col-styles'); 
+      const hiddenIndices = Array.from(state.hiddenColumns); 
+      
+      if (hiddenIndices.length === 0) { 
+          styleEl.textContent = ''; 
+          return; 
+      } 
+      
+      styleEl.textContent = hiddenIndices.map(i => '.col-idx-' + i).join(', ') + ' { display: none !important; }'; 
+  }
+
+  function toggleRow(rIdx, sheetName, checkbox) { 
+      if(checkbox.checked) {
+          addRowToCart(rIdx, sheetName, checkbox); 
+      } else { 
+          state.cart = state.cart.filter(item => !(item.sourceRow === rIdx && item.sourceSheet === sheetName)); 
+          updateCartUI(); 
+          const tr = document.getElementById('row-' + rIdx); 
+          if(tr) tr.classList.remove('row-selected'); 
+      } 
+  }
+
+  function addRowToCart(rIdx, sheetName, checkbox) {
+     const rowData = state.fullData.find(r => r.realRowIndex === rIdx); 
+     if (!rowData) { checkbox.checked = false; return; }
+     
+     const mapping = {}; 
+     document.querySelectorAll('.col-map').forEach(s => mapping[s.dataset.field] = s.value);
+     const getVal = (idx) => (idx !== "" && idx != null) ? (rowData.cells[parseInt(idx)] || "") : "";
+     
+     const item = { 
+         user: getVal(mapping.user), 
+         bot: getVal(mapping.bot), 
+         explanation: getVal(mapping.explanation), 
+         description: getVal(mapping.description), 
+         sourceSheet: sheetName, 
+         sourceRow: rIdx 
+     };
+     
+     state.cart.push(item); 
+     const tr = document.getElementById('row-' + rIdx); 
+     if(tr) tr.classList.add('row-selected');
+     
+     updateCartUI(); 
+     if(state.cart.length === 1) populateInputs(item);
+  }
+
+  function removeCartItem(index) { 
+      const item = state.cart[index]; 
+      state.cart.splice(index, 1); 
+      updateCartUI(); 
+      showToast("Item removed", "info");
+      
+      const idx = document.getElementById('tabSelect').value; 
+      if(idx !== "" && state.tabs[idx].name === item.sourceSheet) { 
+          const checkbox = document.querySelector('#row-' + item.sourceRow + ' .neon-checkbox'); 
+          const tr = document.getElementById('row-' + item.sourceRow); 
+          if(checkbox) checkbox.checked = false; 
+          if(tr) tr.classList.remove('row-selected'); 
+      } 
+  }
+  
+  function clearCart() { 
+      state.cart = []; 
+      updateCartUI(); 
+      renderLocalTable(); 
+      localStorage.removeItem('v26_cart_backup');
+  }
+
+  function editCartItem(index) { 
+      state.editingCartIndex = index; 
+      updateCartUI(); 
+  }
+  
+  function saveCartItemEdit() { 
+      if (state.editingCartIndex !== null) { 
+          const item = state.cart[state.editingCartIndex]; 
+          item.user = document.getElementById('val-user').value; 
+          item.bot = document.getElementById('val-bot').value; 
+          item.explanation = document.getElementById('val-explanation').value; 
+          item.description = document.getElementById('val-description').value; 
+          state.editingCartIndex = null; 
+          updateCartUI(); 
+          showToast("Changes saved to draft", "success");
+      } 
+  }
+  
+  function cancelCartItemEdit() { 
+      state.editingCartIndex = null; 
+      updateCartUI(); 
+  }
+
+  function handleDragStart(e) { 
+      dragSrcIndex = parseInt(this.dataset.index); 
+      e.dataTransfer.effectAllowed = 'move'; 
+      e.dataTransfer.setData('text/plain', dragSrcIndex); 
+      this.classList.add('dragging'); 
+  }
+  
+  function handleDragOver(e) { 
+      if (e.preventDefault) { e.preventDefault(); } 
+      e.dataTransfer.dropEffect = 'move'; 
+      return false; 
+  }
+  
+  function handleDragEnter(e) { this.classList.add('drag-over'); }
+  function handleDragLeave(e) { this.classList.remove('drag-over'); }
+  
+  function handleDrop(e) { 
+      if (e.stopPropagation) { e.stopPropagation(); } 
+      this.classList.remove('drag-over'); 
+      const dropTargetIndex = parseInt(this.dataset.index); 
+      
+      if (dragSrcIndex !== dropTargetIndex && dragSrcIndex !== null) { 
+          const item = state.cart.splice(dragSrcIndex, 1)[0]; 
+          state.cart.splice(dropTargetIndex, 0, item); 
+          updateCartUI(); 
+      } 
+      return false; 
+  }
+  
+  function handleDragEnd(e) { 
+      this.classList.remove('dragging'); 
+      document.querySelectorAll('.cart-item').forEach(item => item.classList.remove('drag-over')); 
+  }
+
+  function updateCartUI() {
+    const btn = document.getElementById('genBtn'); 
+    const addBtn = document.getElementById('addManualBtn');
+    const clearBtn = document.getElementById('clearBtn'); 
+    const disp = document.getElementById('rowDisp'); 
+    const cartList = document.getElementById('cartList'); 
+    const inputs = document.getElementById('editInputs'); 
+    const cartView = document.getElementById('cartView'); 
+    const normalBtns = document.getElementById('actionButtonsNormal'); 
+    const editBtns = document.getElementById('actionButtonsEdit'); 
+    const count = state.cart.length;
+    
+    localStorage.setItem('v26_cart_backup', JSON.stringify(state.cart));
+
+    if (state.editingCartIndex !== null) { 
+        disp.value = `EDIT SLIDE #${state.editingCartIndex + 1}`; 
+        inputs.style.display = 'block'; 
+        cartView.style.display = 'none'; 
+        normalBtns.style.display = 'none'; 
+        editBtns.style.display = 'flex'; 
+        populateInputs(state.cart[state.editingCartIndex]); 
+        return; 
+    }
+    
+    normalBtns.style.display = 'flex'; 
+    editBtns.style.display = 'none';
+    
+    if(count === 0) { 
+        disp.value = "MANUAL ENTRY"; 
+        btn.innerText = "GENERATE 1 SLIDE"; 
+        btn.disabled = false; 
+        
+        clearBtn.style.display = 'none'; 
+        addBtn.style.display = 'block';
+        addBtn.innerText = "+ ADD TO BATCH";
+        addBtn.onclick = addCurrentToBatch;
+
+        inputs.style.display = 'block'; 
+        cartView.style.display = 'none'; 
+        
+        if (btn.dataset.wasPopulated) {
+            populateInputs({user:'', bot:'', explanation:'', description:''});
+            btn.dataset.wasPopulated = "";
+        }
+    } 
+    else {
+        disp.value = count + " SLIDES STAGED"; 
+        btn.innerText = "GENERATE BATCH (" + count + ")"; 
+        btn.disabled = false; 
+        
+        clearBtn.style.display = 'block';
+        addBtn.style.display = 'block';
+        addBtn.innerText = "+ NEW BLANK SLIDE";
+        addBtn.onclick = addNewBlankSlide;
+        btn.dataset.wasPopulated = "true";
+        
+        if(count > 1) {
+            inputs.style.display = 'none'; 
+            cartView.style.display = 'block'; 
+            
+            cartList.innerHTML = '';
+            state.cart.forEach((item, i) => {
+                const div = document.createElement('div'); 
+                div.className = 'cart-item'; 
+                div.draggable = true; 
+                div.dataset.index = i;
+                
+                div.innerHTML = `
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <span style="cursor:grab; opacity:0.5; font-size:1.1rem; padding-right:4px;" title="Drag">≡</span>
+                        <span class="cart-badge">${(i+1).toString().padStart(2,'0')}</span> 
+                        <b>${item.sourceSheet}</b> ${item.sourceRow !== 'Custom' ? '#' + item.sourceRow : '(Custom)'}
+                    </div>
+                    <div class="cart-actions">
+                        <div class="cart-action-btn cart-edit" onclick="editCartItem(${i})" title="Edit Text">✏️</div>
+                        <div class="cart-action-btn cart-remove" onclick="removeCartItem(${i})" title="Remove">✕</div>
+                    </div>`;
+                    
+                div.addEventListener('dragstart', handleDragStart); 
+                div.addEventListener('dragenter', handleDragEnter); 
+                div.addEventListener('dragover', handleDragOver); 
+                div.addEventListener('dragleave', handleDragLeave); 
+                div.addEventListener('drop', handleDrop); 
+                div.addEventListener('dragend', handleDragEnd); 
+                
+                cartList.appendChild(div);
+            });
+        } else {
+            inputs.style.display = 'block'; 
+            cartView.style.display = 'none'; 
+            populateInputs(state.cart[0]); 
+        }
+    }
+  }
+
+  function addCurrentToBatch() {
+      const item = {
+          user: document.getElementById('val-user').value.trim(),
+          bot: document.getElementById('val-bot').value.trim(),
+          explanation: document.getElementById('val-explanation').value.trim(),
+          description: document.getElementById('val-description').value.trim(),
+          sourceSheet: 'Manual Entry',
+          sourceRow: 'Custom'
+      };
+      state.cart.push(item);
+      updateCartUI();
+      showToast("Added to Batch", "success");
+  }
+
+  function addNewBlankSlide() {
+      state.cart.push({
+          user: '', bot: '', explanation: '', description: '',
+          sourceSheet: 'Manual Entry',
+          sourceRow: 'Custom'
+      });
+      editCartItem(state.cart.length - 1);
+  }
+  
+  function populateInputs(d) { 
+      document.getElementById('val-user').value = d.user||''; 
+      document.getElementById('val-bot').value = d.bot||''; 
+      document.getElementById('val-explanation').value = d.explanation||''; 
+      document.getElementById('val-description').value = d.description||''; 
+  }
+
+  function generate() {
+    if (state.activeWorkflow === 'ALL') {
+        showToast("⚠️ Select a specific Workflow (e.g. U18, NPOV) from the top menu to generate slides.", "error");
+        return;
+    }
+
+    const tmplId = document.getElementById('templateId').value;
+    const dstId = document.getElementById('destId').value;
+
+    if (!tmplId || !dstId) {
+        showToast(`⚠️ No template configured. Go to Settings and add the IDs for the workflow '${state.activeWorkflow}'.`, "error");
+        return;
+    }
+
+    let finalData = state.cart; 
+    
+    if(state.cart.length === 0) { 
+        const manualUser = document.getElementById('val-user').value.trim();
+        const manualBot = document.getElementById('val-bot').value.trim();
+        const manualExpl = document.getElementById('val-explanation').value.trim();
+        const manualDesc = document.getElementById('val-description').value.trim();
+
+        if(!manualUser && !manualBot && !manualExpl && !manualDesc) {
+            showToast("Fill in at least one field or select a row.", "error");
+            return; 
+        }
+
+        finalData = [{ 
+            user: manualUser, 
+            bot: manualBot, 
+            explanation: manualExpl, 
+            description: manualDesc 
+        }]; 
+    }
+    
+    const btn = document.getElementById('genBtn'); 
+    const st = document.getElementById('status'); 
+    btn.disabled = true; 
+    btn.innerText = "GENERATING...";
+    showToast("Generating...", "info");
+    
+    google.script.run
+      .withSuccessHandler(res => {
+          btn.disabled = false; 
+          updateCartUI();
+          if(res.success) { 
+              st.innerHTML = `<a href="${res.url}" target="_blank" style="color:var(--primary-accent); font-weight:700;">✅ ${res.count} SLIDES GENERATED</a>`; 
+              clearCart(); 
+              if (state.cart.length === 0) populateInputs({user:'', bot:'', explanation:'', description:''});
+              showToast("Slides generated successfully!", "success");
+          } else {
+              st.innerHTML = `<span style="color:#f87171">Error: ${res.error}</span>`;
+              showToast(res.error, "error");
+          }
+      })
+      .withFailureHandler(err => {
+          btn.disabled = false;
+          st.innerHTML = `<span style="color:#f87171">Error: ${err.message}</span>`;
+          showToast(err.message, "error");
+      })
+      .generateSlides({ 
+          templateId: tmplId, 
+          destinationId: dstId, 
+          date: document.getElementById('slideDate').value, 
+          slides: finalData 
+      });
+  }
+
+  function handleSearch(e) {
+    if(e.key !== 'Enter') return; 
+    const q = e.target.value.toLowerCase();
+    
+    if(q.length === 0 && state.cachedSheet) { 
+        renderLocalTable(); 
+        return; 
+    } 
+    
+    if(q.length < 2) return;
+    
+    if (state.fullData && state.fullData.length > 0) { 
+        const localMatch = state.fullData.find(row => { 
+            return row.cells.some(c => { 
+                if (c === undefined || c === null) return false; 
+                return c.toString().toLowerCase().includes(q); 
+            }); 
+        }); 
+        
+        if (localMatch) { 
+            renderLocalTable(null, localMatch.realRowIndex, localMatch.realRowIndex); 
+            return; 
+        } 
+    }
+    
+    loader(true);
+    google.script.run
+      .withSuccessHandler(res => {
+          if(!res.success || res.results.length === 0) { 
+              loader(false); 
+              showToast("No results found.", "info");
+              return; 
+          }
+          
+          const match = res.results[0]; 
+          const tabIdx = state.tabs.findIndex(t => t.name === match.sheetName);
+          
+          if (document.getElementById('tabSelect').value != tabIdx) { 
+              state.cachedSheet = null; 
+          } 
+          
+          document.getElementById('tabSelect').value = tabIdx;
+          showToast(`Found in: ${match.sheetName}`, "success");
+          
+          google.script.run.withSuccessHandler(cfgRes => {
+              let hRow = 1; 
+              if(cfgRes.success && cfgRes.config) { 
+                  hRow = parseInt(cfgRes.config.headerRow) || 1; 
+                  state.pendingMap = cfgRes.config.mapping; 
+              } 
+              document.getElementById('headerRow').value = hRow;
+              
+              google.script.run.withSuccessHandler(hRes => { 
+                  if(hRes.success) { 
+                      state.headers = hRes.headers; 
+                      updateMaps(); 
+                      loadTable(null, match.row, match.row); 
+                  } 
+              }).getSheetHeaders({ 
+                  spreadsheetId: document.getElementById('sourceId').value, 
+                  sheetName: match.sheetName, 
+                  headerRow: hRow 
+              });
+          }).loadSheetConfig({ 
+              spreadsheetId: document.getElementById('sourceId').value, 
+              sheetName: match.sheetName 
+          });
+      })
+      .withFailureHandler(err => { loader(false); showToast("Global search error.", "error");})
+      .searchGlobalFast({ 
+          spreadsheetId: document.getElementById('sourceId').value, 
+          query: q 
+      });
+  }
+
+  const STOP_WORDS = new Set([
+      'the','a','an','of','and','or','to','in','for','on','at','by','from','as',
+      'is','are','was','were','be','been','being','with','that','this','it','its',
+      'into','about','over','under','between','but','so','if','then','than','there',
+      'here','can','could','should','would','will','may','might','do','does','did',
+      'done','have','has','had','having','just','please','user','model','case','task',
+      'what','when','where','who','why','how','which','whom','whose',
+      'best','approach','extent','treat','treated','use','make','create','picture',
+      'image','text','video','good','goods','bad','worse','better','issue','bug',
+      'generate','generated','generation','prompt','response','query','output',
+      'http', 'https', 'com', 'org', 'corp', 'google', 'googleplex', 'screenshot', 'link', 
+      'email', 'reply', 'forward', 'hi', 'hello', 'team', 'regards', 'thanks', 'thank', 
+      'audit', 'fte', 'verdict', 'decision', 'policy', 'comment', 'added', 
+      'changed', 'status', 'assignee', 'reporter', 'cc', 'type', 'priority', 'severity', 
+      'clarification', 'similar', 'example', 'provided', 'consider', 
+      'considered', 'label', 'labeled', 'flag', 'flagged', 'guidance', 'question', 'answer',
+      'wip', 'hyd', 'acn', 'emea', 'adc', 'pr', 'non', 'photorealistic', 'sync', 'offline', 
+      'update', 'qa', 'l0', 'l1', 'layer', 'raters', 'quality', 'analyst', 'syncronization',
+      'synchronization', 'kb', 'error', 'u18'
+  ]);
+
+  const Stemmer = {
+    stem: function(w) {
+      if (w.length < 3) return w;
+      var step2list = {"ational":"ate","tional":"tion","enci":"ence","anci":"ance","izer":"ize","bli":"ble","alli":"al","entli":"ent","eli":"e","ousli":"ous","ization":"ize","ation":"ate","ator":"ate","alism":"al","iveness":"ive","fulness":"ful","ousness":"ous","aliti":"al","iviti":"ive","biliti":"ble","logi":"log"};
+      var step3list = {"icate":"ic","ative":"","alize":"al","iciti":"ic","ical":"ic","ful":"","ness":""};
+      var c = "[^aeiou]", v = "[aeiouy]", C = c + "[^aeiouy]*", V = v + "[aeiou]*";
+      var mgr0 = "^(" + C + ")?" + V + C, mgr1 = "^(" + C + ")?" + V + C + V + C, s_v = "^(" + C + ")?" + v;
+      var firstch = w.substr(0,1); if (firstch == "y") w = firstch.toUpperCase() + w.substr(1);
+      var re = /^(.+?)(ss|i)es$/, re2 = /^(.+?)([^s])s$/;
+      if (re.test(w)) w = w.replace(re,"$1$2"); else if (re2.test(w)) w = w.replace(re2,"$1$2");
+      re = /^(.+?)eed$/; re2 = /^(.+?)(ed|ing)$/;
+      if (re.test(w)) { var fp = re.exec(w); re = new RegExp(mgr0); if (re.test(fp[1])) { re = /.$/; w = w.replace(re,""); } } 
+      else if (re2.test(w)) { var fp = re2.exec(w); var stem = fp[1]; re2 = new RegExp(s_v); if (re2.test(stem)) { w = stem; re2 = /(at|bl|iz)$/; if (re2.test(w)) w = w + "e"; else { var re3 = new RegExp("([^aeiouylsz])\\1$"), re4 = new RegExp("^" + C + v + "[^aeiouwxy]$"); if (re3.test(w)) { re = /.$/; w = w.replace(re,""); } else if (re4.test(w)) w = w + "e"; } } }
+      re = /^(.+?)y$/; if (re.test(w)) { var fp = re.exec(w); stem = fp[1]; re = new RegExp(s_v); if (re.test(stem)) w = stem + "i"; }
+      re = /^(.+?)(ational|tional|enci|anci|izer|bli|alli|entli|eli|ousli|ization|ation|ator|alism|iveness|fulness|ousness|aliti|iviti|biliti|logi)$/;
+      if (re.test(w)) { var fp = re.exec(w); stem = fp[1]; var suffix = fp[2]; re = new RegExp(mgr0); if (re.test(stem)) w = stem + step2list[suffix]; }
+      re = /^(.+?)(icate|ative|alize|iciti|ical|ful|ness)$/; if (re.test(w)) { var fp = re.exec(w); stem = fp[1]; suffix = fp[2]; re = new RegExp(mgr0); if (re.test(stem)) w = stem + step3list[suffix]; }
+      re = /^(.+?)(al|ance|ence|er|ic|able|ible|ant|ement|ment|ent|ou|ism|ate|iti|ous|ive|ize)$/; var re2 = /^(.+?)(s|t)(ion)$/;
+      if (re.test(w)) { var fp = re.exec(w); stem = fp[1]; re = new RegExp(mgr1); if (re.test(stem)) w = stem; } else if (re2.test(w)) { var fp = re2.exec(w); stem = fp[1] + fp[2]; re = new RegExp(mgr1); if (re.test(stem)) w = stem; }
+      re = /^(.+?)e$/; if (re.test(w)) { var fp = re.exec(w); stem = fp[1]; re = new RegExp(mgr1); re2 = /^(.+?)[^aeiouy][aeiouy][^aeiouywxY]$/; if (re.test(stem) || (re2.test(stem) && !(/^(.+?)[^aeiouy][aeiouy][^aeiouywxY]$/.test(stem)))) w = stem; }
+      re = /ll$/; re2 = new RegExp(mgr1); if (re.test(w) && re2.test(w)) { re = /.$/; w = w.replace(re,""); }
+      if (firstch == "y") w = firstch.toLowerCase() + w.substr(1);
+      return w;
+    }
+  };
+
+  function levenshtein(a, b) {
+      let t = [], u, i, j, m = a.length, n = b.length;
+      if (!m) return n; if (!n) return m;
+      for (j = 0; j <= n; j++) t[j] = j;
+      for (i = 1; i <= m; i++) {
+          for (u = [i], j = 1; j <= n; j++) {
+              u[j] = a[i - 1] === b[j - 1] ? t[j - 1] : Math.min(t[j - 1], t[j], u[j - 1]) + 1;
+          } t = u;
+      } return u[n];
+  }
+
+  const RAW_CORE_KEYWORDS = [
+      'stereotype', 'race', 'harassment', 'replicable', 'identifiable', 'minor', 
+      'dangerous', 'explicit', 'emaciated', 'bias', 'instruction', 'illegal', 
+      'weapon', 'firework', 'medical', 'harm', 'gore', 'hate', 'csam', 'pii', 
+      'suicide', 'blood', 'violence', 'sexual', 'nudity', 'porn', 'abuse', 
+      'bully', 'threat', 'pedophile', 'drugs', 'substance', 'advice', 'sparkler', 'smoking'
+  ];
+  const CORE_KEYWORDS_STEMMED = new Set(RAW_CORE_KEYWORDS.map(w => Stemmer.stem(w)));
+
+  function cleanSubjectForMatching(subject) {
+      if (!subject) return "";
+      let s = subject.replace(/\[.*?\]/g, ' '); 
+      s = s.replace(/Issue\s+\d+:/gi, ' ');
+      s = s.replace(/\/\//g, ' ');
+      s = s.replace(/[-:]/g, ' ');
+      return s.trim();
+  }
+
+  function getTokensMap(text) {
+      let cleanText = text.replace(/https?:\/\/[^\s]+/ig, ''); 
+      cleanText = cleanText.replace(/[a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+/ig, ''); 
+      cleanText = cleanText.replace(/\[\d{1,2}(?:st|nd|rd|th)?\s+[a-zA-Z]+\]\s*-\s*[a-zA-Z\s]+/ig, ''); 
+      cleanText = cleanText.replace(/\b(?:screenshot|googleplex|buganizer)\b/ig, ''); 
+      
+      let words = cleanText.toLowerCase().match(/[a-z]+/g) || [];
+      let tokenMap = new Map();
+      
+      for (let i = 0; i < words.length; i++) {
+          let w = words[i];
+          if (w.length > 3 && !STOP_WORDS.has(w)) {
+              let stem = Stemmer.stem(w);
+              
+              for (let cw of RAW_CORE_KEYWORDS) {
+                  if (Math.abs(w.length - cw.length) <= 1 && levenshtein(w, cw) <= 1) {
+                      stem = Stemmer.stem(cw);
+                      w = cw; 
+                      break;
+                  }
+              }
+              if (!tokenMap.has(stem)) tokenMap.set(stem, w);
+              
+              if (i < words.length - 1 && !STOP_WORDS.has(words[i+1])) {
+                  let nextW = words[i+1];
+                  let bigramStem = stem + "_" + Stemmer.stem(nextW);
+                  if (!tokenMap.has(bigramStem)) tokenMap.set(bigramStem, w + " " + nextW);
+              }
+          }
+      }
+      return tokenMap;
+  }
+
+  function findHydraSimilarBugs(targetBugId, allBugs) {
+      const targetBug = allBugs[targetBugId];
+      if (!targetBug) return [];
+
+      let activeWf = state.activeWorkflow; 
+
+      let targetPolicies = new Set();
+      let targetCaseText = "";
+      let targetCleanSubject = cleanSubjectForMatching(targetBug.subject);
+      let targetSubjectTokens = getTokensMap(targetCleanSubject);
+
+      targetBug.comments.forEach(c => {
+          if (c.structuredCases && c.structuredCases.length > 0) {
+              c.structuredCases.forEach(sc => {
+                  targetCaseText += sc.description + " ";
+                  if (sc.isViolation && sc.verdictText && sc.verdictText !== "Violation" && sc.verdictText !== "Review") {
+                      targetPolicies.add(sc.verdictText.toLowerCase());
+                  }
+              });
+          }
+      });
+
+      let targetCaseTokens = getTokensMap(targetCaseText);
+      let results = [];
+
+      for (let id in allBugs) {
+          if (id === targetBugId) continue;
+          let otherBug = allBugs[id];
+
+          // HYDRA MATCH MULTI-TAG: Check with .includes instead of =
+          if (activeWf !== 'ALL' && !(otherBug.workflow || "U18").includes(activeWf)) continue;
+
+          let otherPolicies = new Set();
+          let otherCaseText = "";
+          let otherCleanSubject = cleanSubjectForMatching(otherBug.subject);
+          let otherSubjectTokens = getTokensMap(otherCleanSubject);
+
+          otherBug.comments.forEach(c => {
+              if (c.structuredCases && c.structuredCases.length > 0) {
+                  c.structuredCases.forEach(sc => {
+                      otherCaseText += sc.description + " ";
+                      if (sc.isViolation && sc.verdictText && sc.verdictText !== "Violation" && sc.verdictText !== "Review") {
+                          otherPolicies.add(sc.verdictText.toLowerCase());
+                      }
+                  });
+              }
+          });
+
+          let otherCaseTokens = getTokensMap(otherCaseText);
+          let score = 0;
+
+          let sharedPolicies = Array.from(otherPolicies).filter(p => targetPolicies.has(p));
+          score += sharedPolicies.length * 50;
+
+          let sharedSubjectWords = [];
+          targetSubjectTokens.forEach((originalWord, stem) => {
+              if (otherSubjectTokens.has(stem)) {
+                  sharedSubjectWords.push(originalWord);
+                  score += 25;
+              }
+          });
+
+          let sharedCaseWords = [];
+          targetCaseTokens.forEach((originalWord, stem) => { 
+              if (otherCaseTokens.has(stem)) {
+                  sharedCaseWords.push(originalWord);
+                  if (CORE_KEYWORDS_STEMMED.has(stem) || stem.includes("_")) score += 15;
+                  else score += 3; 
+              }
+          });
+
+          let maxPossibleScore = (targetPolicies.size * 50) + (targetSubjectTokens.size * 25) + (targetCaseTokens.size * 3) + 20; 
+          let percentage = maxPossibleScore > 0 ? Math.round((score / maxPossibleScore) * 100) : 0;
+          if (percentage > 98) percentage = 98;
+
+          if (score > 20 || sharedPolicies.length > 0) { 
+              let topSubjectWords = sharedSubjectWords.sort((a,b) => b.length - a.length).slice(0, 4);
+              let topCaseWords = sharedCaseWords.sort((a, b) => {
+                  let aStem = Stemmer.stem(a);
+                  let bStem = Stemmer.stem(b);
+                  let aCore = CORE_KEYWORDS_STEMMED.has(aStem) ? 1 : 0;
+                  let bCore = CORE_KEYWORDS_STEMMED.has(bStem) ? 1 : 0;
+                  if (aCore !== bCore) return bCore - aCore;
+                  return b.length - a.length;
+              }).slice(0, 4);
+              
+              results.push({ id: id, subject: otherBug.subject, score: score, percentage: Math.max(15, percentage), matchingPolicies: sharedPolicies, matchingSubjectWords: topSubjectWords, matchingCaseWords: topCaseWords });
+          }
+      }
+      return results.sort((a, b) => b.score - a.score).slice(0, 3);
+  }
+
+  function linkifyText(text) {
+      const urlRegex = /(\b(https?):\/\/[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])/ig;
+      return text.replace(urlRegex, function(url) {
+          return `<a href="${url}" target="_blank" style="color:var(--primary-accent); text-decoration:underline;">${url}</a>`;
+      });
+  }
+
+  function escapeHTML(str) {
+      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function formatForReading(text) {
+      if (!text) return "";
+      let escaped = escapeHTML(text);
+      escaped = escaped.replace(/([^\n])\n([^\n\-\*•])/g, '$1 $2');
+      return linkifyText(escaped);
+  }
+
+  function highlightSemantics(text) {
+      let ht = text;
+      
+      const dangerPolicies = ['csam', 'hate speech', 'violence', 'gore', 'self harm', 'suicide', 'dangerous content', 'weapons', 'illegal acts'];
+      const warningPolicies = ['pii', 'medical advice', 'harassment', 'bullying', 'sexually explicit', 'nudity', 'emaciated'];
+      const safePolicies = ['safe', 'no violation', 'allow', 'good'];
+
+      const applyHighlights = (words, className) => {
+          words.forEach(word => {
+              const regex = new RegExp(`\\b(${word})\\b`, 'gi');
+              ht = ht.replace(regex, `<span class="hl-badge ${className}">$1</span>`);
+          });
+      };
+
+      applyHighlights(dangerPolicies, 'hl-danger');
+      applyHighlights(warningPolicies, 'hl-warning');
+      applyHighlights(safePolicies, 'hl-safe');
+
+      return ht;
+  }
+
+  function aggregateBugCases(comments) {
+      const caseMap = new Map();
+      let globalDecision = "";
+      let globalPolicy = "";
+      let generalGuidance = "";
+      let guidanceDate = "";
+
+      const paEmails = ['jessicakwee', 'fnykvist', 'clairelilley', 'fredrik'];
+
+      comments.forEach(c => {
+          if (c.globalDecision) globalDecision = c.globalDecision;
+          if (c.globalPolicy) globalPolicy = c.globalPolicy;
+
+          let headerLower = (c.header || "").toLowerCase();
+          let isPA = c.type === 'pa_verdict' || paEmails.some(pa => headerLower.includes(pa));
+
+          if (c.type === 'pa_verdict') {
+              let textToSave = c.introText ? c.introText.trim() : "";
+              if (c.structuredCases && c.structuredCases.length === 0) {
+                    textToSave = c.body.trim(); 
+              }
+
+              textToSave = textToSave.replace(/(Generated by Buganizer notification system[\s\S]*?Unsubscribe from this issue\.)/gi, '').trim();
+              textToSave = textToSave.replace(/(You're receiving this email because[\s\S]*?Unsubscribe from this issue\.)/gi, '').trim();
+
+              if (textToSave) {
+                  let pureText = textToSave;
+                  pureText = pureText.replace(/\[.*?\]/g, ' '); 
+                  pureText = pureText.replace(/["']?\d{1,2}[-\s/]+[a-zA-Z]+[-\s/]+\d{2,4}[\s\S]{0,50}?(?=\n|$)/gi, ' ');
+                  pureText = pureText.replace(/^(?:Hi|Hello|Hey|Dear).*?(?:\r\n|\n|,)/gi, ' ');
+                  pureText = pureText.replace(/^[a-zA-Z\s]+:\s*/, ' ');
+
+                  let words = pureText.split(/\s+/).filter(w => /[a-zA-Z]{2,}/.test(w));
+
+                  if (words.length > 7) { 
+                      generalGuidance = textToSave; 
+                      guidanceDate = c.date;
+                  }
+              }
+          }
+
+          if (c.structuredCases && c.structuredCases.length > 0) {
+              c.structuredCases.forEach(sc => {
+                  let normName = sc.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+                  if (!caseMap.has(normName) || isPA || (caseMap.get(normName).verdict === 'Review' && sc.verdictText !== 'Review')) {
+                      caseMap.set(normName, {
+                          originalName: sc.name,
+                          verdict: sc.verdictText,
+                          description: sc.description,
+                          sourceType: isPA ? 'pa_verdict' : 'comment',
+                          sourceDate: c.date,
+                          isViolation: sc.isViolation,
+                          isNeutral: sc.isNeutral
+                      });
+                  }
+              });
+          }
+      });
+      
+      let sortedCases = Array.from(caseMap.values());
+      sortedCases.sort((a, b) => {
+          let numA = parseInt((a.originalName.match(/\d+/) || [0])[0]);
+          let numB = parseInt((b.originalName.match(/\d+/) || [0])[0]);
+          
+          if (numA === numB) {
+              return a.originalName.localeCompare(b.originalName);
+          }
+          return numA - numB;
+      });
+
+      return { cases: sortedCases, globalDecision, globalPolicy, generalGuidance, guidanceDate };
+  }
+
+
+  function switchBugTab(tabId) {
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
+      
+      document.getElementById('btn-tab-' + tabId).classList.add('active');
+      document.getElementById('pane-tab-' + tabId).classList.add('active');
+  }
+
+  function openBugInspector(bugId) {
+      const data = localBugCache[bugId];
+      if (!data) return;
+
+      let wfBadgeLabel = data.workflow || "U18";
+
+      let boxHtml = `
+          <div class="modal-header">
+              <div class="modal-tabs">
+                  <button id="btn-tab-summary" class="tab-btn active" onclick="switchBugTab('summary')">🎯 EXECUTIVE SUMMARY</button>
+                  <button id="btn-tab-thread" class="tab-btn" onclick="switchBugTab('thread')">🕒 FULL THREAD (${data.comments.length})</button>
+              </div>
+              <div class="modal-close-btn" onclick="closeModal('inspectorModal')">✕ ESC</div>
+          </div>
+          <div id="inspectorContent" class="modal-content" style="padding:0;">
+              
+              <div id="pane-tab-summary" class="tab-pane active" style="padding:30px;">
+                  <div style="margin-bottom:10px;">
+                      <span style="background:var(--primary-dim); color:var(--primary-accent); padding:4px 8px; border-radius:6px; font-size:0.7rem; font-weight:bold; font-family:var(--font-code); border:1px solid rgba(220, 210, 166, 0.3);">🏷️ WORKFLOW: ${wfBadgeLabel}</span>
+                  </div>
+                  <h2 style="color:var(--primary-accent); margin-top:0; font-family:var(--font-display);">${data.subject}</h2>
+                  <div id="cross-sheet-results-${bugId}"></div>
+      `;
+
+      const aggregated = aggregateBugCases(data.comments);
+      
+      if (aggregated.globalDecision || aggregated.globalPolicy) {
+          boxHtml += `
+          <div style="background: rgba(220, 210, 166, 0.05); border: 1px solid var(--border-color); border-radius: 8px; padding: 15px 20px; margin-bottom: 25px; display:flex; gap: 30px;">
+              ${aggregated.globalDecision ? `<div><span style="font-size:0.7rem; text-transform:uppercase; color:var(--text-muted); font-weight:bold; letter-spacing:1px; display:block; margin-bottom:4px;">Global Decision</span><span style="color:#fff; font-family:var(--font-code);">${escapeHTML(aggregated.globalDecision)}</span></div>` : ''}
+              ${aggregated.globalPolicy ? `<div><span style="font-size:0.7rem; text-transform:uppercase; color:var(--text-muted); font-weight:bold; letter-spacing:1px; display:block; margin-bottom:4px;">Global Policy</span><span style="color:var(--primary-accent); font-weight:bold;">${escapeHTML(aggregated.globalPolicy)}</span></div>` : ''}
+          </div>`;
+      }
+
+      if (aggregated.generalGuidance) {
+          boxHtml += `
+          <div style="background: rgba(56, 189, 248, 0.05); border: 1px solid rgba(56, 189, 248, 0.2); border-left: 4px solid #38bdf8; border-radius: 8px; margin-bottom: 25px; overflow: hidden;">
+              <div style="padding: 10px 16px; border-bottom: 1px solid rgba(56, 189, 248, 0.1); background: rgba(56, 189, 248, 0.02); display: flex; justify-content: space-between; align-items: center;">
+                  <div style="color: #38bdf8; font-weight: 700; font-size: 0.8rem; letter-spacing: 0.5px; display:flex; align-items:center; gap:8px;">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+                      GENERAL GUIDANCE / KB UPDATE
+                  </div>
+                  <div style="color: rgba(255,255,255,0.4); font-size: 0.7rem;">🕒 ${aggregated.guidanceDate}</div>
+              </div>
+              <div style="padding: 16px; font-size: 0.95rem; color: #e2e8f0; line-height: 1.6; white-space: pre-wrap; font-family: var(--font-ui);">
+                  ${highlightSemantics(formatForReading(aggregated.generalGuidance))}
+              </div>
+          </div>`;
+      }
+
+      if (aggregated.cases.length > 0) {
+          aggregated.cases.forEach(c => {
+              let vClass = c.verdict === 'Information' || c.isNeutral ? 'pending' : (c.isViolation ? 'violation' : 'safe');
+              let originBadge = c.sourceType === 'pa_verdict' ? `<span style="background:rgba(16, 185, 129, 0.15); color:#10b981; padding:2px 6px; border-radius:4px;">Verified by PA</span>` : `<span style="background:rgba(245, 158, 11, 0.15); color:#f59e0b; padding:2px 6px; border-radius:4px;">Pending PA / User Note</span>`;
+
+              boxHtml += `
+              <div class="case-summary-card">
+                  <div class="case-summary-header">
+                      <div class="case-title">${escapeHTML(c.originalName)}</div>
+                      <div class="case-verdict ${vClass}">${escapeHTML(c.verdict)}</div>
+                  </div>
+                  <div class="case-desc">${highlightSemantics(formatForReading(c.description))}</div>
+                  <div class="case-meta">
+                      <div>Status: ${originBadge}</div>
+                      <div>Last update: ${c.sourceDate}</div>
+                  </div>
+              </div>`;
+          });
+      } else if (!aggregated.generalGuidance) {
+          boxHtml += `<div style="text-align:center; padding:40px; color:var(--text-muted); font-style:italic;">No explicit verdict or structured scenario found. Check the full thread.</div>`;
+      }
+
+      boxHtml += `</div>`; 
+
+      boxHtml += `<div id="pane-tab-thread" class="tab-pane" style="padding:30px;">`;
+
+      data.comments.forEach((c, index) => {
+          let dateStr = c.date ? c.date : '';
+          let isLatest = (index === data.comments.length - 1);
+          let latestBadge = isLatest ? `<span style="background:rgba(220,210,166,0.15); color:var(--primary-accent); padding:2px 8px; border-radius:12px; font-size:0.65rem; font-weight:700; margin-left:10px; border:1px solid rgba(220,210,166,0.3);">✨ LATEST</span>` : '';
+          
+          if (c.type === 'pa_verdict') {
+              boxHtml += `
+              <div style="background: rgba(239, 68, 68, 0.05); border: 1px solid rgba(239, 68, 68, 0.2); border-left: 4px solid #ef4444; border-radius: 8px; margin-bottom: 20px; overflow: hidden; font-family: var(--font-ui);">
+                  <div style="padding: 12px 16px; border-bottom: 1px solid rgba(239, 68, 68, 0.1); display: flex; justify-content: space-between; align-items: center; background: rgba(239, 68, 68, 0.02);">
+                      <div style="color: #ef4444; font-weight: 700; font-size: 0.85rem; display: flex; align-items: center; gap: 8px;">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                          PA FINAL VERDICT
+                      </div>
+                      <div style="display:flex; align-items:center; color:rgba(255,255,255,0.4); font-size:0.75rem;">🕒 ${dateStr} ${latestBadge}</div>
+                  </div>
+                  <div style="padding: 16px;">`;
+
+              if (c.introText) {
+                  let cleanIntro = c.introText.replace(/(Generated by Buganizer notification system[\s\S]*?Unsubscribe from this issue\.)/gi, '').trim();
+                  if (cleanIntro) boxHtml += `<div style="font-size:0.95rem; color:#cbd5e1; margin-bottom:20px; line-height: 1.6; white-space:pre-wrap;">${highlightSemantics(formatForReading(cleanIntro))}</div>`;
+              }
+              
+              c.structuredCases.forEach(parsedCase => {
+                  let badgeColor, badgeBg;
+                  if (parsedCase.verdictText === 'Information') { badgeColor = '#38bdf8'; badgeBg = 'rgba(56, 189, 248, 0.1)'; }
+                  else if (parsedCase.isNeutral) { badgeColor = '#f59e0b'; badgeBg = 'rgba(245, 158, 11, 0.1)'; }
+                  else { badgeColor = parsedCase.isViolation ? '#ef4444' : '#10b981'; badgeBg = parsedCase.isViolation ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)'; }
+                  
+                  boxHtml += `
+                  <div style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); border-radius:8px; padding:16px; margin-bottom:12px;">
+                      <div style="display:flex; align-items:center; gap:12px; margin-bottom:10px;">
+                          <strong style="color:#fff; font-size:1rem;">${escapeHTML(parsedCase.name)}</strong>
+                          <span style="background:${badgeBg}; color:${badgeColor}; border:1px solid rgba(255,255,255,0.1); padding:2px 10px; border-radius:4px; font-size:0.7rem; font-weight:700; letter-spacing:0.5px; text-transform:uppercase;">${escapeHTML(parsedCase.verdictText)}</span>
+                      </div>
+                      <div style="font-size:0.95rem; color:#e2e8f0; line-height:1.6; white-space:pre-wrap;">${highlightSemantics(formatForReading(parsedCase.description))}</div>
+                  </div>`;
+              });
+              boxHtml += `</div></div>`;
+
+          } else {
+              let authorName = "System / User";
+              let match = c.header.match(/(.*?@google\.com)/i);
+              if(match) authorName = match[1];
+              else if (c.type === 'description') authorName = "Original Description";
+              
+              let initial = authorName.charAt(0).toUpperCase();
+              let isSystem = !authorName.includes('@');
+              let avatarColor = isSystem ? '#a9a9b3' : 'var(--primary-accent)';
+              let avatarBg = isSystem ? 'rgba(255,255,255,0.1)' : 'var(--primary-dim)';
+              
+              let displayBody = c.body;
+              displayBody = displayBody.replace(/(Generated by Buganizer notification system[\s\S]*?Unsubscribe from this issue\.)/gi, '');
+              displayBody = displayBody.replace(/(You're receiving this email because[\s\S]*?Unsubscribe from this issue\.)/gi, '');
+              displayBody = displayBody.trim();
+
+              if(displayBody.length > 0) {
+                  displayBody = formatForReading(displayBody);
+                  displayBody = displayBody.replace(/(Region:\s*.*?)\s+(Session ID:\s*.*?)\s+(Sub Workflow:\s*.*?)\s+(Workflow:\s*.*?)(?=\n|<br>|$)/gi, 
+                      '<div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.05); padding:12px; border-radius:8px; font-size:0.75rem; color:var(--text-muted); font-family:var(--font-code); margin-bottom:15px;"><div>$1</div><div>$2</div><div>$3</div><div>$4</div></div>');
+                  
+                  boxHtml += `
+                  <div style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; margin-bottom: 16px; font-family: var(--font-ui);">
+                      <div style="padding: 12px 16px; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.2);">
+                          <div style="display: flex; align-items: center; gap: 10px;">
+                              <div style="width: 24px; height: 24px; border-radius: 50%; background: ${avatarBg}; color: ${avatarColor}; display: flex; justify-content: center; align-items: center; font-size: 0.75rem; font-weight: bold;">${initial}</div>
+                              <span style="color: #e2e8f0; font-weight: 600; font-size: 0.85rem;">${escapeHTML(authorName)}</span>
+                          </div>
+                          <div style="display:flex; align-items:center; color: rgba(255,255,255,0.4); font-size: 0.75rem;">🕒 ${dateStr} ${latestBadge}</div>
+                      </div>
+                      <div style="padding: 16px; font-size: 0.95rem; color: #cbd5e1; line-height: 1.6; white-space: pre-wrap;">${highlightSemantics(displayBody)}</div>
+                  </div>`;
+              }
+          }
+      });
+
+      boxHtml += `<div style="margin-top:20px; text-align:right;"><a href="${data.link}" target="_blank" style="display:inline-block; background:var(--primary-accent); color:#000; padding:10px 20px; border-radius:6px; text-decoration:none; font-weight:bold; font-size:0.85rem; font-family:var(--font-ui); box-shadow:0 4px 10px rgba(220, 210, 166, 0.2); transition:0.2s;">Open in Gmail ↗</a></div>`;
+      boxHtml += `</div>`; 
+
+      const relatedBugs = findHydraSimilarBugs(bugId, localBugCache);
+      if (relatedBugs.length > 0) {
+          boxHtml += `<div style="margin:30px; border-top:1px solid rgba(220, 210, 166, 0.2); padding-top:20px; font-family:var(--font-ui);">
+                      <h4 style="color:var(--primary-accent); margin-top:0; margin-bottom:15px; display:flex; align-items:center; gap:8px;">
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+                          Hydra Neural Match (Similar Bugs)
+                      </h4>
+                      <div style="display:grid; grid-template-columns: 1fr; gap: 10px;">`;
+          
+          relatedBugs.forEach(rb => {
+              let polTags = rb.matchingPolicies.map(p => `<span class="hydra-tag" style="background:rgba(239, 68, 68, 0.2); color:#f87171; border:1px solid rgba(239, 68, 68, 0.4);">🏷️ ${escapeHTML(p)}</span>`).join('');
+              let subjectTags = rb.matchingSubjectWords.map(w => `<span class="hydra-keyword">"${escapeHTML(w)}"</span>`).join(', ');
+              let caseTags = rb.matchingCaseWords.map(w => `<span class="hydra-keyword">"${escapeHTML(w)}"</span>`).join(', ');
+
+              boxHtml += `
+              <div class="hydra-card" onclick="openBugInspector('${rb.id}')">
+                  <div class="hydra-card-header">
+                      <strong style="color:var(--primary-accent); font-family:var(--font-code);">b/${rb.id}</strong>
+                      <span class="hydra-match-score">${rb.percentage}% Match</span>
+                  </div>
+                  <div style="font-size:0.8rem; color:#e2e8f0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:6px;" title="${escapeHTML(rb.subject)}">${escapeHTML(rb.subject)}</div>
+                  ${polTags ? `<div style="margin-bottom:4px;">${polTags}</div>` : ''}
+                  ${subjectTags ? `<div style="font-size:0.7rem; color:var(--text-muted); margin-top:4px;">🎯 Title match: ${subjectTags}</div>` : ''}
+                  ${caseTags ? `<div style="font-size:0.7rem; color:var(--text-muted); margin-top:2px;">📄 Context match: ${caseTags}</div>` : ''}
+              </div>`;
+          });
+          boxHtml += `</div></div>`;
+      }
+
+      boxHtml += `</div>`; 
+
+      document.querySelector('#inspectorModal .modal-box').innerHTML = boxHtml;
+      document.getElementById('inspectorModal').style.display = 'block';
+
+      google.script.run.withSuccessHandler(res => {
+          let container = document.getElementById(`cross-sheet-results-${bugId}`);
+          if(res.success && res.results.length > 0 && container) {
+              let idx = document.getElementById('tabSelect').value; 
+              let currTabName = state.tabs[idx] ? state.tabs[idx].name : "";
+              let otherResults = res.results.filter(r => r.sheetName !== currTabName);
+              
+              if(otherResults.length > 0) {
+                  let crossHtml = `<div style="background:rgba(56, 189, 248, 0.1); border:1px solid #38bdf8; border-radius:6px; padding:10px; margin-bottom:15px; font-family:var(--font-ui);">
+                                      <div style="color:#38bdf8; font-weight:bold; font-size:0.8rem; margin-bottom:5px;">📋 FOUND IN OTHER SHEETS:</div>`;
+                  otherResults.forEach(r => {
+                      crossHtml += `<div style="font-size:0.75rem; color:#e2e8f0; margin-bottom:2px;">Tab: <b>${escapeHTML(r.sheetName)}</b> (Row ${r.row})</div>`;
+                  });
+                  crossHtml += `</div>`;
+                  container.innerHTML = crossHtml;
+              }
+          }
+      }).searchGlobalFast({ spreadsheetId: document.getElementById('sourceId').value, query: bugId });
+  }
+
+  function openInspector(text) {
+    if(!text) return; 
+    
+    function formatLongText(rawText) {
+        let t = rawText.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); 
+        const codeBlocks = [];
+        
+        t = t.replace(/```([\s\S]*?)```/g, function(match, code) { 
+            codeBlocks.push(code); 
+            return `___CODEBLOCK_${codeBlocks.length - 1}___`; 
+        });
+        
+        t = t.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>'); 
+        t = t.replace(/\*(.*?)\*/g, '<em>$1</em>'); 
+        t = t.replace(/`(.*?)`/g, '<span class="md-inline-code">$1</span>');
+        
+        t = t.replace(/(\b(https?):\/\/[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])/ig, function(url) {
+            const isImage = /\.(jpeg|jpg|gif|png|webp)(?:\?.*)?$/i.test(url);
+            if (isImage) { 
+                return `<br><a href="${url}" target="_blank"><img src="${url}" class="inspector-img"></a><br>`; 
+            } else { 
+                return `<a href="${url}" target="_blank" style="color:var(--primary-accent); text-decoration:underline;">${url}</a>`; 
+            }
+        });
+        
+        let paragraphs = [];
+        if (t.includes('\n\n')) { 
+            paragraphs = t.split(/\n\n+/); 
+        } else {
+            let sentences = [], currentSentence = "";
+            for (let i = 0; i < t.length; i++) {
+                currentSentence += t[i];
+                if ((t[i] === '.' || t[i] === '?' || t[i] === '!') && i + 2 < t.length && t[i+1] === ' ') { 
+                    let nextChar = t[i+2]; 
+                    if (nextChar !== nextChar.toLowerCase() && /[A-Z]/.test(nextChar)) { 
+                        sentences.push(currentSentence.trim()); 
+                        currentSentence = ""; 
+                        i++; 
+                    } 
+                }
+            }
+            if (currentSentence) sentences.push(currentSentence.trim());
+            
+            let currentP = "";
+            for (let j = 0; j < sentences.length; j++) { 
+                currentP += (currentP ? " " : "") + sentences[j]; 
+                if (currentP.length > 350 || j === sentences.length - 1) { 
+                    paragraphs.push(currentP); 
+                    currentP = ""; 
+                } 
+            }
+            if (paragraphs.length === 0) paragraphs = [t]; 
+        }
+        
+        let htmlContent = paragraphs.map(p => { 
+            let htmlP = p.replace(/\n/g, '<br>'); 
+            return `<p style="margin-bottom: 1.6em; line-height: 1.8; font-size: 0.95rem; color: #e2e8f0; font-family:var(--font-ui); text-align: justify;">${htmlP}</p>`; 
+        }).join('');
+        
+        codeBlocks.forEach((code, i) => { 
+            htmlContent = htmlContent.replace(`___CODEBLOCK_${i}___`, `<div class="md-codeblock">${code}</div>`); 
+        });
+        
+        return htmlContent;
+    }
+    
+    let boxHtml = `
+        <div class="modal-header" style="padding: 20px 30px;">
+          <div style="font-weight:700; color:var(--primary-accent); letter-spacing:1px; font-family:var(--font-ui);">DATA INSPECTOR</div>
+          <div style="cursor:pointer; color:var(--text-muted); font-weight:bold; font-size:0.8rem; font-family:var(--font-ui); transition:0.2s;" onclick="closeModal('inspectorModal')" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='var(--text-muted)'">✕ ESC</div>
+        </div>
+        <div id="inspectorContent" class="modal-content">
+            ${formatLongText(text)}
+        </div>
+        <div style="padding:20px 30px; display:flex; justify-content:flex-end; gap:10px; border-top:1px solid var(--border-color); background:rgba(0,0,0,0.2); border-radius: 0 0 var(--radius-lg) var(--radius-lg);">
+          <button class="btn btn-ghost" style="width:auto" onclick="copyModalContent()">Copy Text</button>
+          <button class="btn btn-neon" style="width:auto" onclick="closeModal('inspectorModal')">Close</button>
+        </div>
+    `;
+
+    document.querySelector('#inspectorModal .modal-box').innerHTML = boxHtml; 
+    document.getElementById('inspectorModal').style.display = 'block';
+  }
+  
+  function closeModal(id) { 
+      document.getElementById(id).style.display = 'none'; 
+  }
+  
+  function copyModalContent() { 
+      navigator.clipboard.writeText(document.getElementById('inspectorContent').innerText).then(() => {
+          showToast("Text copied to clipboard!", "success");
+      }); 
+  }
+</script>

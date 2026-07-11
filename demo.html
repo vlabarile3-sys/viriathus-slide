@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Viriathus Slide AI — Static Demo</title>
+  <style>
+    :root{
+      --bg-dark:#141821;
+      --bg-panel:rgba(20,24,33,.84);
+      --bg-soft:rgba(255,255,255,.04);
+      --primary:#dcd2a6;
+      --primary-dim:rgba(220,210,166,.14);
+      --border:rgba(220,210,166,.28);
+      --text:#e7eaf2;
+      --muted:#98a0b3;
+      --good:#10b981;
+      --warn:#f59e0b;
+      --bad:#ef4444;
+      --info:#38bdf8;
+      --radius:16px;
+      --radius-sm:12px;
+      --shadow:0 14px 40px rgba(0,0,0,.35);
+      --mono:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;
+      --ui:Inter,Segoe UI,Roboto,Arial,sans-serif;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family:var(--ui);
+      color:var(--text);
+      background:radial-gradient(circle at top,#20283a 0,#141821 45%,#0f131c 100%);
+      overflow:hidden;
+    }
+    #network-canvas{position:fixed;inset:0;width:100%;height:100%;opacity:.8;z-index:0}
+    .vignette-overlay{position:fixed;inset:0;background:radial-gradient(ellipse at center,rgba(20,24,33,0) 55%,rgba(20,24,33,1) 105%);pointer-events:none;z-index:1}
+    .loader-line{position:fixed;top:0;left:0;height:3px;width:0;background:var(--primary);box-shadow:0 0 18px var(--primary);z-index:20;transition:width .25s ease}
+    .bento-container{
+      position:relative;z-index:2;
+      display:grid;
+      grid-template-columns:340px 1fr 420px;
+      grid-template-rows:74px 1fr;
+      gap:18px;
+      max-width:1900px;
+      margin:0 auto;
+      height:calc(100vh - 36px);
+      padding:18px;
+    }
+    .header-area{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;padding:0 6px}
+    .logo-container{display:flex;align-items:center;gap:14px}
+    .logo-mark{
+      width:52px;height:52px;border-radius:18px;
+      display:grid;place-items:center;
+      background:linear-gradient(135deg,var(--primary),#fff2b4 60%,#b3a56f);
+      color:#111827;font-weight:900;letter-spacing:1px;box-shadow:0 0 22px rgba(220,210,166,.25)
+    }
+    .logo-text{font-size:1.35rem;font-weight:800;letter-spacing:1px}
+    .logo-highlight{color:var(--primary)}
+    .header-actions{display:flex;align-items:center;gap:12px}
+    .workflow-select,.search-input,.glass-input,textarea,select{
+      width:100%;border:1px solid var(--border);background:rgba(15,23,42,.6);color:#fff;
+      border-radius:12px;padding:12px;font:inherit;transition:.2s
+    }
+    .workflow-select{width:180px;border-radius:999px;padding:11px 16px;color:var(--primary);font-weight:700}
+    .search-wrapper{position:relative;width:360px}
+    .search-input{padding-left:42px;border-radius:999px}
+    .search-icon{position:absolute;left:15px;top:50%;transform:translateY(-50%);opacity:.55;color:var(--primary)}
+    .glass-input:focus,.search-input:focus,.workflow-select:focus,textarea:focus,select:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(220,210,166,.08)}
+    label{display:block;font-size:.68rem;font-weight:700;color:var(--muted);letter-spacing:1.3px;text-transform:uppercase;margin:0 0 8px}
+    .card{
+      display:flex;flex-direction:column;min-width:0;
+      background:var(--bg-panel);backdrop-filter:blur(12px);
+      border:1px solid var(--border);border-radius:var(--radius);padding:22px;box-shadow:var(--shadow)
+    }
+    .presets{display:flex;gap:4px;padding:4px;border-radius:10px;background:rgba(0,0,0,.24);margin-bottom:18px}
+    .preset-item{flex:1;text-align:center;padding:8px;border-radius:8px;color:var(--muted);cursor:pointer;font-size:.76rem;font-weight:700}
+    .preset-item.active{background:var(--primary);color:#111827}
+    .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:none;border-radius:12px;padding:12px 14px;font-weight:700;cursor:pointer;font:inherit;transition:.2s}
+    .btn-neon{background:var(--primary);color:#0a0c10;box-shadow:0 0 18px rgba(220,210,166,.26)}
+    .btn-ghost{background:rgba(255,255,255,.03);color:var(--text);border:1px solid var(--border)}
+    .btn:hover{transform:translateY(-1px)}
+    .btn-ghost:hover{color:var(--primary);border-color:var(--primary)}
+    .settings-btn{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;border:1px solid var(--border);background:rgba(255,255,255,.04);color:var(--primary);cursor:pointer;transition:.25s}
+    .settings-btn:hover{transform:rotate(45deg);background:var(--primary-dim)}
+    .table-wrapper{padding-bottom:16px;overflow:hidden}
+    .table-scroll{overflow:auto;height:100%;border-radius:12px;background:rgba(0,0,0,.18)}
+    table{width:100%;border-collapse:separate;border-spacing:0}
+    th,td{padding:11px 12px;text-align:left;font-size:.8rem;border-bottom:1px solid rgba(255,255,255,.04);white-space:nowrap}
+    th{position:sticky;top:0;background:#1b1f2c;z-index:2;color:var(--muted);font-size:.72rem;letter-spacing:.5px}
+    td{color:#d2d8e4;max-width:250px;overflow:hidden;text-overflow:ellipsis}
+    tr:hover td{background:rgba(220,210,166,.05);color:#fff}
+    .row-selected td{background:rgba(220,210,166,.12)!important;color:#fff}
+    .row-in-deck td:first-child{border-left:3px solid var(--good)}
+    .table-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px}
+    .table-actions{display:flex;gap:8px;flex-wrap:wrap}
+    .muted{color:var(--muted)}
+    .mono{font-family:var(--mono)}
+    .badge{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;font-size:.68rem;font-weight:800;letter-spacing:.6px}
+    .badge.good{background:rgba(16,185,129,.14);color:#6ee7b7;border:1px solid rgba(16,185,129,.35)}
+    .badge.warn{background:rgba(245,158,11,.14);color:#fcd34d;border:1px solid rgba(245,158,11,.35)}
+    .badge.bad{background:rgba(239,68,68,.14);color:#fca5a5;border:1px solid rgba(239,68,68,.35)}
+    .badge.info{background:rgba(56,189,248,.14);color:#7dd3fc;border:1px solid rgba(56,189,248,.35)}
+    .status-grid{display:grid;grid-template-columns:1fr 1.4fr;gap:12px;margin-bottom:16px}
+    textarea.preview-box{min-height:88px;resize:vertical;background:rgba(0,0,0,.22);font-family:var(--mono);border-left:3px solid var(--primary)}
+    #cartView{display:none;flex-direction:column;border:1px solid var(--border);border-radius:12px;background:rgba(0,0,0,.18);padding:10px;max-height:170px;overflow:auto;margin-bottom:16px}
+    .cart-item{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;padding:10px;border-radius:10px;background:rgba(255,255,255,.04);margin-bottom:8px;border:1px solid transparent}
+    .cart-item:hover{border-color:var(--primary)}
+    .cart-item strong{display:block;margin-bottom:4px}
+    .cart-actions{display:flex;gap:6px}
+    .cart-action-btn{border:none;background:transparent;color:var(--muted);cursor:pointer;font-weight:800}
+    .cart-action-btn:hover{color:var(--primary)}
+    .settings-card,.legend-card,.mini-panel{background:rgba(0,0,0,.28);border:1px solid var(--border);border-radius:12px;padding:18px}
+    .settings-card h3,.section-title{margin:0 0 12px;color:var(--primary);font-size:.92rem;letter-spacing:1px}
+    .legend-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px}
+    .legend-item{padding:12px;border-radius:10px;background:rgba(255,255,255,.03)}
+    .placeholder-tag{display:inline-block;background:var(--primary);color:#0a0c10;border-radius:6px;padding:4px 8px;font-family:var(--mono);font-size:.72rem;font-weight:800;margin-bottom:6px}
+    .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.84);backdrop-filter:blur(8px);z-index:30}
+    .modal-box{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:min(980px,94vw);height:min(86vh,760px);background:#141821;border:1px solid var(--border);border-radius:18px;box-shadow:var(--shadow);display:flex;flex-direction:column}
+    .modal-header{display:flex;justify-content:space-between;align-items:center;padding:18px 20px;border-bottom:1px solid var(--border)}
+    .modal-content{padding:22px;overflow:auto}
+    .case-summary-card,.generated-card{padding:18px;border:1px solid rgba(255,255,255,.08);border-radius:14px;background:rgba(255,255,255,.03);margin-bottom:16px}
+    .case-summary-header{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,.06)}
+    .case-title{font-size:1.1rem;font-weight:800}
+    .case-desc{line-height:1.65;color:#d5dbea}
+    .case-meta{display:flex;gap:10px;flex-wrap:wrap;padding-top:12px;margin-top:12px;border-top:1px dashed rgba(255,255,255,.08);font-size:.75rem;color:var(--muted)}
+    .detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+    .detail-grid .mini-panel{min-height:120px}
+    .codebox{font-family:var(--mono);font-size:.8rem;white-space:pre-wrap;line-height:1.55}
+    .toast-container{position:fixed;right:24px;bottom:24px;z-index:40;display:flex;flex-direction:column;gap:10px}
+    .toast{padding:14px 18px;border-radius:12px;border-left:4px solid var(--primary);background:rgba(20,24,33,.94);box-shadow:var(--shadow);max-width:340px}
+    .toast.success{border-left-color:var(--good)} .toast.error{border-left-color:var(--bad)} .toast.info{border-left-color:var(--info)}
+    .recent-decks{display:flex;flex-direction:column;gap:10px;max-height:185px;overflow:auto}
+    .deck-chip{padding:12px;border-radius:12px;border:1px solid rgba(16,185,129,.25);background:rgba(16,185,129,.08)}
+    .deck-chip a{color:#9af0c3;text-decoration:none;font-weight:700}
+    .deck-chip small{display:block;color:#b8c2d7;margin-top:4px}
+    .col-manager-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
+    .col-toggle-item{display:flex;align-items:center;gap:10px;padding:10px;border:1px solid rgba(255,255,255,.06);border-radius:10px;background:rgba(255,255,255,.03)}
+    .inspector-actions,.settings-actions{display:flex;justify-content:flex-end;gap:10px;padding:16px 20px;border-top:1px solid var(--border)}
+    .empty-state{padding:28px;text-align:center;color:var(--muted)}
+    @media (max-width:1400px){
+      .bento-container{grid-template-columns:320px 1fr;grid-template-rows:74px auto auto}
+      .card:last-of-type{grid-column:1/-1}
+    }
+    @media (max-width:980px){
+      body{overflow:auto}
+      .bento-container{display:flex;flex-direction:column;height:auto}
+      .header-area{flex-direction:column;align-items:flex-start;gap:12px}
+      .header-actions{width:100%;flex-wrap:wrap}
+      .search-wrapper{width:100%}
+      .workflow-select{width:100%}
+      .status-grid,.detail-grid{grid-template-columns:1fr}
+    }
+  </style>
+</head>
+<body>
+  <canvas id="network-canvas"></canvas>
+  <div class="vignette-overlay"></div>
+  <div class="loader-line" id="loader"></div>
+
+  <div id="inspectorModal" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-header">
+        <div style="font-weight:800;color:var(--primary);letter-spacing:1px">DATA INSPECTOR</div>
+        <div style="cursor:pointer;color:var(--muted)" onclick="closeModal('inspectorModal')">✕ ESC</div>
+      </div>
+      <div id="inspectorContent" class="modal-content"></div>
+      <div class="inspector-actions">
+        <button class="btn btn-ghost" onclick="copyModalContent()">Copy Text</button>
+        <button class="btn btn-neon" onclick="closeModal('inspectorModal')">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="columnModal" class="modal-overlay">
+    <div class="modal-box" style="width:min(680px,92vw);height:min(70vh,620px)">
+      <div class="modal-header">
+        <div style="font-weight:800;color:var(--primary);letter-spacing:1px">MANAGE COLUMNS</div>
+        <div style="cursor:pointer;color:var(--muted)" onclick="closeModal('columnModal')">✕ ESC</div>
+      </div>
+      <div class="modal-content">
+        <div style="display:flex;gap:10px;margin-bottom:14px">
+          <button class="btn btn-ghost" onclick="toggleAllColumns(true)">Select All</button>
+          <button class="btn btn-ghost" onclick="toggleAllColumns(false)">Deselect All</button>
+        </div>
+        <div id="colManagerList" class="col-manager-grid"></div>
+      </div>
+      <div class="settings-actions"><button class="btn btn-neon" onclick="closeModal('columnModal')">Done</button></div>
+    </div>
+  </div>
+
+  <div id="settingsModal" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-header">
+        <div style="font-weight:800;color:var(--primary);letter-spacing:1px">SETTINGS &amp; TEMPLATES</div>
+        <div style="cursor:pointer;color:var(--muted)" onclick="closeModal('settingsModal')">✕ ESC</div>
+      </div>
+      <div class="modal-content" style="display:flex;flex-direction:column;gap:18px">
+        <div class="settings-card" style="border-color:var(--info)">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+            <h3 style="margin:0;color:var(--info)">🗄️ HISTORICAL BUGS DATABASE (MOCK)</h3>
+            <a id="dbLinkBtn" href="#" target="_blank" style="display:none;color:var(--info);text-decoration:none;font-weight:800">OPEN SPREADSHEET ↗</a>
+          </div>
+          <p class="muted" style="font-size:.84rem;line-height:1.6">This standalone demo simulates the original Google Apps Script flows locally. Database sync, workflow presets and slide generation are all backed by fake in-browser data.</p>
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px">
+            <button id="startSyncBtn" class="btn btn-ghost" style="color:var(--info);border-color:var(--info)" onclick="startDbSync()">START GLOBAL SYNC</button>
+            <button id="autoSyncBtn" class="btn btn-ghost" onclick="toggleAutoSyncUI()">⏳ CHECKING STATUS...</button>
+          </div>
+          <div id="syncStatus" class="mono" style="font-size:.78rem">Database ready.</div>
+        </div>
+
+        <div class="settings-card" style="background:rgba(220,210,166,.05)">
+          <h3>⚙️ SELECT WORKFLOW TO CONFIGURE</h3>
+          <select id="settingsWorkflowSelect" class="glass-input" onchange="loadSettingsForWorkflow()">
+            <option value="WF_ALPHA">WF_ALPHA</option>
+            <option value="WF_BETA">WF_BETA</option>
+          </select>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div class="settings-card">
+            <h3>QUALITY PRESET</h3>
+            <label>Template Slide URL or ID</label>
+            <input id="set-qual-tmpl" class="glass-input" value="deck-template-quality-alpha">
+            <label>Destination Deck URL or ID</label>
+            <input id="set-qual-dest" class="glass-input" value="deck-destination-quality-alpha">
+          </div>
+          <div class="settings-card">
+            <h3>PKT PRESET</h3>
+            <label>Template Slide URL or ID</label>
+            <input id="set-pkt-tmpl" class="glass-input" value="deck-template-pkt-alpha">
+            <label>Destination Deck URL or ID</label>
+            <input id="set-pkt-dest" class="glass-input" value="deck-destination-pkt-alpha">
+          </div>
+        </div>
+
+        <div class="legend-card">
+          <div class="section-title">How the mock generation maps content</div>
+          <div class="legend-grid">
+            <div class="legend-item"><div class="placeholder-tag">{{DATE}}</div><div>Uses the selected slide date.</div></div>
+            <div class="legend-item"><div class="placeholder-tag">{{SLIDE_NUM}}</div><div>Sequential slide number in the generated deck.</div></div>
+            <div class="legend-item"><div class="placeholder-tag">{{USER}}</div><div>Values from the selected case's user context.</div></div>
+            <div class="legend-item"><div class="placeholder-tag">{{BOT}}</div><div>Values from the case response / output field.</div></div>
+            <div class="legend-item"><div class="placeholder-tag">{{EXPLANATION}}</div><div>Reasoning and policy logic mapped into narrative callouts.</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="settings-actions">
+        <button class="btn btn-ghost" onclick="resetSettings()">Restore Defaults</button>
+        <button class="btn btn-neon" onclick="saveSettings()">Save Configuration</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="bento-container">
+    <div class="header-area">
+      <div class="logo-container">
+        <div class="logo-mark">VS</div>
+        <div class="logo-text">VIRIATHUS <span class="logo-highlight">SLIDE AI</span></div>
+      </div>
+      <div class="header-actions">
+        <select id="workflowFilter" class="workflow-select" onchange="onWorkflowFilterChange()">
+          <option value="ALL">🌐 All Workflows</option>
+          <option value="WF_ALPHA">🛡️ WF_ALPHA</option>
+          <option value="WF_BETA">⚖️ WF_BETA</option>
+        </select>
+        <div class="search-wrapper">
+          <span class="search-icon">🔍</span>
+          <input id="globalSearch" class="search-input" placeholder="Search across all mock sheets (Press Enter)..." onkeydown="handleSearch(event)">
+        </div>
+        <div class="settings-btn" onclick="openSettings()" title="Settings">⚙</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="presets">
+        <div class="preset-item active" data-preset="quality" onclick="setPreset('quality',event)">Quality</div>
+        <div class="preset-item" data-preset="pkt" onclick="setPreset('pkt',event)">PKT</div>
+      </div>
+      <input type="hidden" id="templateId"><input type="hidden" id="destId">
+
+      <label>Source Spreadsheet (URL or ID)</label>
+      <div style="display:flex;gap:8px;margin-bottom:16px">
+        <input id="sourceId" class="glass-input" style="margin:0" value="mock-viriathus-spreadsheet-alpha" placeholder="Paste Google Sheet URL or ID">
+        <button class="btn btn-neon" style="width:54px" onclick="connectSheet()">↻</button>
+      </div>
+
+      <div id="configArea" style="display:none">
+        <label>Active Worksheet</label>
+        <select id="tabSelect" class="glass-input" onchange="onTabChange(true)"></select>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div>
+            <label>Header Row</label>
+            <input id="headerRow" type="number" min="1" value="1" class="glass-input">
+          </div>
+          <div>
+            <label>Action</label>
+            <button class="btn btn-ghost" onclick="fetchHeaders(true)">Refetch</button>
+          </div>
+        </div>
+
+        <div style="margin:15px 0;height:1px;background:var(--border)"></div>
+        <label>Data Mapping</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div><label style="font-size:.6rem">User Context</label><select class="glass-input col-map" data-field="user" onchange="onMappingChange()"></select></div>
+          <div><label style="font-size:.6rem">Bot Output</label><select class="glass-input col-map" data-field="bot" onchange="onMappingChange()"></select></div>
+          <div><label style="font-size:.6rem">Logic/Expl</label><select class="glass-input col-map" data-field="explanation" onchange="onMappingChange()"></select></div>
+          <div><label style="font-size:.6rem">Notes</label><select class="glass-input col-map" data-field="description" onchange="onMappingChange()"></select></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card table-wrapper">
+      <div class="table-head">
+        <div>
+          <div style="font-size:.8rem;font-weight:800;letter-spacing:1px">LIVE DATA (STATIC DEMO MODE)</div>
+          <div id="tableInfo" class="muted mono" style="font-size:.76rem;margin-top:4px">Waiting...</div>
+        </div>
+        <div class="table-actions">
+          <button class="btn btn-ghost" onclick="openColumnManager()">COLUMNS</button>
+          <button class="btn btn-ghost" onclick="changePage(-1)">PREV</button>
+          <button class="btn btn-ghost" onclick="changePage(1)">NEXT</button>
+          <button class="btn btn-neon" onclick="forceRefresh()">REFRESH</button>
+        </div>
+      </div>
+      <div class="table-scroll">
+        <table id="mainTable">
+          <thead><tr id="tHead"><th>Waiting for connection...</th></tr></thead>
+          <tbody id="tBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="status-grid">
+        <div>
+          <label>Status</label>
+          <input id="rowDisp" class="glass-input" readonly style="text-align:center;color:var(--primary);font-weight:800">
+        </div>
+        <div>
+          <label>Slide Date</label>
+          <input id="slideDate" type="date" class="glass-input">
+        </div>
+      </div>
+
+      <div id="cartView">
+        <label style="position:sticky;top:0;background:#1b1f2c;padding-bottom:6px">Staged Slides</label>
+        <div id="cartList"></div>
+      </div>
+
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <button class="btn btn-ghost" onclick="openSelectedCaseInspector()">OPEN INSPECTOR</button>
+        <button class="btn btn-ghost" onclick="addNewBlankSlide()">NEW BLANK</button>
+      </div>
+
+      <div id="editInputs">
+        <label>User Prompt</label>
+        <textarea id="val-user" class="glass-input preview-box"></textarea>
+        <label>Bot Response</label>
+        <textarea id="val-bot" class="glass-input preview-box"></textarea>
+        <label>Logic / Explanation</label>
+        <textarea id="val-explanation" class="glass-input preview-box"></textarea>
+        <label>Additional Notes</label>
+        <textarea id="val-description" class="glass-input preview-box"></textarea>
+      </div>
+
+      <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-ghost" onclick="addCurrentToBatch()">+ ADD TO BATCH</button>
+        <button class="btn btn-ghost" onclick="clearCart()">CLEAR ALL</button>
+        <button id="genBtn" class="btn btn-neon" style="flex:1" onclick="generate()">GENERATE</button>
+      </div>
+      <div id="status" class="muted" style="text-align:center;font-size:.74rem;margin-top:10px">Ready to process</div>
+
+      <div class="mini-panel" style="margin-top:18px">
+        <div class="section-title">Recent Mock Decks</div>
+        <div id="recentDecks" class="recent-decks"><div class="empty-state">No generated slides yet.</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-container" class="toast-container"></div>
+
+  <script>
+    const DEFAULT_PRESETS = {
+      WF_ALPHA:{quality:{tmpl:'deck-template-quality-alpha',dest:'deck-destination-quality-alpha'},pkt:{tmpl:'deck-template-pkt-alpha',dest:'deck-destination-pkt-alpha'}},
+      WF_BETA:{quality:{tmpl:'deck-template-quality-beta',dest:'deck-destination-quality-beta'},pkt:{tmpl:'deck-template-pkt-beta',dest:'deck-destination-pkt-beta'}}
+    };
+
+    const MOCK_SHEETS = [
+      {
+        name:'WF_ALPHA_CASES', workflow:'WF_ALPHA', rows:[
+          {row:12,caseId:'ALPHA-104',workflow:'WF_ALPHA',sheetName:'WF_ALPHA_CASES',severity:'HIGH',status:'Open',subject:'User threatened self-harm after account lockout',user:'I cannot log in and I want to disappear tonight.',bot:'I am sorry you are going through this. Please contact local emergency services or a crisis line immediately.',explanation:'Safety template triggered on self-harm language and account access frustration. Escalation path selected with human review required.',description:'Crisis lexicon matched. Avoid troubleshooting-only answer. Human escalation inserted.',owner:'Marta',updated:'2026-07-08',tags:'crisis,account',slideHint:'Safety escalation overview'},
+          {row:18,caseId:'ALPHA-109',workflow:'WF_ALPHA',sheetName:'WF_ALPHA_CASES',severity:'MEDIUM',status:'Resolved',subject:'Teen reported repeat harassment in DMs',user:'This person keeps messaging me from new accounts after I blocked them.',bot:'We have limited the reported accounts and preserved evidence for trust review.',explanation:'Harassment recurrence required evidence preservation and repeat-offender workflow.',description:'Good sample for enforcement explanation slide.',owner:'Luca',updated:'2026-07-09',tags:'harassment,repeat-offender',slideHint:'Repeat harassment case'},
+          {row:24,caseId:'ALPHA-112',workflow:'WF_ALPHA',sheetName:'WF_ALPHA_CASES',severity:'LOW',status:'Monitoring',subject:'False positive on mild sarcasm',user:'It was obviously a joke between friends.',bot:'The moderation action has been reversed and feedback logged for model tuning.',explanation:'Classifier over-weighted isolated sarcasm phrase without context; reversal issued.',description:'Useful for false-positive / QA narrative.',owner:'Eleni',updated:'2026-07-10',tags:'false-positive,context',slideHint:'Model correction example'},
+          {row:31,caseId:'ALPHA-118',workflow:'WF_ALPHA',sheetName:'WF_ALPHA_CASES',severity:'HIGH',status:'Open',subject:'Minor asked how to bypass age gate',user:'How do I get around the mature-content lock?',bot:'I cannot help bypass platform safety controls. Here is why the restriction exists.',explanation:'Underage circumvention detected; policy block plus educational response.',description:'Shows policy refusal + rationale formatting.',owner:'Jules',updated:'2026-07-11',tags:'age-gate,policy',slideHint:'Refusal rationale slide'}
+        ]
+      },
+      {
+        name:'WF_BETA_CASES', workflow:'WF_BETA', rows:[
+          {row:7,caseId:'BETA-205',workflow:'WF_BETA',sheetName:'WF_BETA_CASES',severity:'HIGH',status:'Escalated',subject:'Election misinformation claim with edited image',user:'This image proves ballots were dumped behind city hall.',bot:'The claim is unverified. Context from local officials and source checks has been added.',explanation:'Image provenance failed. Routed to integrity workflow with supporting context box.',description:'Good demo for evidence, source checks and structured callouts.',owner:'Nadia',updated:'2026-07-08',tags:'misinfo,image',slideHint:'Integrity case summary'},
+          {row:13,caseId:'BETA-212',workflow:'WF_BETA',sheetName:'WF_BETA_CASES',severity:'MEDIUM',status:'Resolved',subject:'Conspiracy cluster reused same talking points',user:'Every account says the same thing word for word.',bot:'We identified a coordinated pattern and reduced distribution pending review.',explanation:'Similarity scoring and shared keywords crossed coordination threshold.',description:'Demonstrates cross-sheet clustering style output.',owner:'Rui',updated:'2026-07-09',tags:'coordination,cluster',slideHint:'Cluster detection'},
+          {row:20,caseId:'BETA-218',workflow:'WF_BETA',sheetName:'WF_BETA_CASES',severity:'LOW',status:'Monitoring',subject:'Satire article mistaken for real event',user:'People are sharing this article as if it happened.',bot:'Satire context label has been added for clarity.',explanation:'Publisher is known satire source; label applied instead of removal.',description:'Useful for nuanced policy explanations.',owner:'Mina',updated:'2026-07-10',tags:'satire,labeling',slideHint:'Context label example'},
+          {row:26,caseId:'BETA-223',workflow:'WF_BETA',sheetName:'WF_BETA_CASES',severity:'HIGH',status:'Open',subject:'Bot network amplified fabricated evacuation order',user:'This post says everyone must leave downtown now.',bot:'The content was restricted and emergency agencies were cited in the corrective notice.',explanation:'Urgent public harm scenario. High priority correction template generated.',description:'Best sample for urgent slide generation.',owner:'Theo',updated:'2026-07-11',tags:'public-harm,urgent',slideHint:'Emergency correction slide'}
+        ]
+      }
+    ];
+
+    const state = {
+      tabs:[], headers:[], fullData:[], currentPage:0, rowsPerPage:6, currentPreset:'quality',
+      selectedCase:null, cart:[], generatedDecks:[], cachedSheet:null, pendingMap:null,
+      slideSignatures:[], visibleColumns:['caseId','workflow','severity','status','subject','owner','updated'],
+      autoSync:false, dbCache:{}, sheetConfigs:loadStored('mock-sheet-configs',{}), presets:loadStored('mock-presets',JSON.parse(JSON.stringify(DEFAULT_PRESETS)))
+    };
+
+    function loadStored(key,fallback){ try{ const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; }catch(e){ return fallback; } }
+    function saveStored(key,val){ localStorage.setItem(key, JSON.stringify(val)); }
+    function loader(active){ document.getElementById('loader').style.width = active ? '68%' : '100%'; if(!active){ setTimeout(()=>document.getElementById('loader').style.width='0%',220); } }
+    function showToast(msg,type='info'){ const el=document.createElement('div'); el.className='toast '+type; el.textContent=msg; document.getElementById('toast-container').appendChild(el); setTimeout(()=>{ el.style.opacity='0'; el.style.transform='translateX(20px)'; setTimeout(()=>el.remove(),350); },2600); }
+    function closeModal(id){ document.getElementById(id).style.display='none'; }
+    function copyModalContent(){ navigator.clipboard && navigator.clipboard.writeText(document.getElementById('inspectorContent').innerText || ''); showToast('Inspector content copied.','success'); }
+    function escapeHTML(v){ return String(v||'').replace(/[&<>\"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
+
+    const mockServer = {
+      getDbUrl(){ return 'https://docs.google.com/spreadsheets/d/mock-viriathus-bugs/edit#gid=0'; },
+      getAutoSyncStatus(){ return state.autoSync; },
+      toggleAutoSync(newState){ state.autoSync = !!newState; return {active:state.autoSync,msg:state.autoSync?'Mock Auto-Sync enabled.':'Mock Auto-Sync disabled.'}; },
+      syncBugBatch(offset){ const chunk = 3; const total = MOCK_SHEETS.reduce((n,s)=>n+s.rows.length,0); const processed = Math.min((offset||0)+chunk,total); return {done:processed>=total,totalProcessed:processed,nextOffset:processed}; },
+      getBugCacheChunked(startRow){
+        const all = MOCK_SHEETS.flatMap(s=>s.rows);
+        const slice = all.slice(startRow||0,(startRow||0)+3);
+        const data = {};
+        slice.forEach(item => data[item.caseId] = {workflow:item.workflow,severity:item.severity,subject:item.subject});
+        return {done:(startRow||0)+3>=all.length,nextRow:(startRow||0)+3,data:data};
+      },
+      getSlideSignatures(){ return {success:true,signatures:state.generatedDecks.flatMap(d=>d.slides.map(s=>s.caseId))}; },
+      getSheetMetadata(){ return {success:true,metadata:MOCK_SHEETS.map(s=>({name:s.name,workflow:s.workflow,rows:s.rows.length}))}; },
+      loadSheetConfig(payload){ const cfg = state.sheetConfigs[payload.sheetName] || {headerRow:1,mapping:{user:'user',bot:'bot',explanation:'explanation',description:'description'}}; return {success:true,config:cfg}; },
+      saveSheetConfig(payload){ state.sheetConfigs[payload.sheetName] = {headerRow:payload.headerRow,mapping:payload.mapping}; saveStored('mock-sheet-configs',state.sheetConfigs); return {success:true}; },
+      getSheetHeaders(payload){ const sheet = MOCK_SHEETS.find(s=>s.name===payload.sheetName); const headers = sheet ? Object.keys(sheet.rows[0]).filter(k => !['sheetName'].includes(k)) : []; return {success:true,headers:headers}; },
+      fetchFullSheetData(payload){ const sheet = MOCK_SHEETS.find(s=>s.name===payload.sheetName); return {success:!!sheet,data:sheet ? sheet.rows.map(r=>Object.assign({},r)) : [],error:sheet?'':'Sheet not found'}; },
+      searchGlobalFast(payload){
+        const q = String(payload.query||'').toLowerCase().trim();
+        const results = MOCK_SHEETS.flatMap(s=>s.rows.filter(r => JSON.stringify(r).toLowerCase().includes(q)).map(r=>({sheetName:s.name,row:r.row,caseId:r.caseId,subject:r.subject})));
+        return {success:true,results:results};
+      },
+      generateSlides(payload){
+        const items = (payload.items||[]).length ? payload.items : [payload.single].filter(Boolean);
+        const deckId = 'mock-deck-' + Date.now();
+        const slides = items.map((item,idx)=>({
+          slideNumber: idx+1,
+          caseId: item.caseId || ('MANUAL-' + (idx+1)),
+          title: (item.workflow || 'MANUAL') + ' • ' + (item.slideHint || item.subject || 'Ad-hoc case'),
+          workflow: item.workflow || 'MANUAL',
+          headline: item.subject || 'Blank slide',
+          bullets:[
+            'User Context: ' + (item.user || 'No user prompt provided.'),
+            'Bot Output: ' + (item.bot || 'No bot response provided.'),
+            'Logic: ' + (item.explanation || 'No logic notes provided.'),
+            'Notes: ' + (item.description || 'No additional notes provided.')
+          ],
+          footer:'Generated on ' + payload.date + ' using ' + payload.preset.toUpperCase() + ' preset'
+        }));
+        const deck = {id:deckId,url:'https://slides.google.com/mock/'+deckId,preset:payload.preset,date:payload.date,slides:slides,createdAt:new Date().toISOString()};
+        state.generatedDecks.unshift(deck);
+        state.generatedDecks = state.generatedDecks.slice(0,8);
+        return {success:true,url:deck.url,count:slides.length,slides:slides};
+      }
+    };
+
+    function createGoogleScriptRunMock(server){
+      const runner = { _success:null, _failure:null };
+      runner.withSuccessHandler = function(fn){ this._success = fn; return this; };
+      runner.withFailureHandler = function(fn){ this._failure = fn; return this; };
+      Object.keys(server).forEach(name => {
+        runner[name] = function(){
+          const args = Array.prototype.slice.call(arguments);
+          const success = this._success;
+          const failure = this._failure;
+          this._success = null; this._failure = null;
+          setTimeout(() => {
+            try { const result = server[name].apply(null,args); success && success(result); }
+            catch(err){ failure ? failure(err) : console.error(err); }
+          }, 180 + Math.floor(Math.random()*260));
+          return this;
+        };
+      });
+      return runner;
+    }
+    window.google = { script: { run: createGoogleScriptRunMock(mockServer) } };
+
+    function initAnimation(){
+      const canvas=document.getElementById('network-canvas'); const ctx=canvas.getContext('2d');
+      let dots=[];
+      function resize(){ canvas.width=innerWidth; canvas.height=innerHeight; dots=Array.from({length:42},()=>({x:Math.random()*canvas.width,y:Math.random()*canvas.height,vx:(Math.random()-.5)*.35,vy:(Math.random()-.5)*.35,r:Math.random()*1.6+1})); }
+      function tick(){
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+        dots.forEach((d,i)=>{
+          d.x+=d.vx; d.y+=d.vy;
+          if(d.x<0||d.x>canvas.width) d.vx*=-1;
+          if(d.y<0||d.y>canvas.height) d.vy*=-1;
+          ctx.beginPath(); ctx.fillStyle='rgba(220,210,166,.75)'; ctx.arc(d.x,d.y,d.r,0,Math.PI*2); ctx.fill();
+          for(let j=i+1;j<dots.length;j++){
+            const o=dots[j], dx=d.x-o.x, dy=d.y-o.y, dist=Math.sqrt(dx*dx+dy*dy);
+            if(dist<160){ ctx.strokeStyle='rgba(220,210,166,' + (0.12 - dist/1800) + ')'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(d.x,d.y); ctx.lineTo(o.x,o.y); ctx.stroke(); }
+          }
+        });
+        requestAnimationFrame(tick);
+      }
+      resize(); addEventListener('resize',resize); tick();
+    }
+
+    function loadBugCache(){
+      const statusEl = document.getElementById('syncStatus');
+      function fetchNextChunk(row){
+        google.script.run.withSuccessHandler(res => {
+          if(res.data) Object.assign(state.dbCache,res.data);
+          statusEl.textContent = res.done ? '✅ Database ready. Total mock bugs: ' + Object.keys(state.dbCache).length : 'Loaded ' + Object.keys(state.dbCache).length + ' mock bugs...';
+          if(!res.done) fetchNextChunk(res.nextRow);
+        }).getBugCacheChunked(row || 0);
+      }
+      fetchNextChunk(0);
+    }
+
+    function initSettings(){
+      google.script.run.withSuccessHandler(url => {
+        const link = document.getElementById('dbLinkBtn'); link.href = url; link.style.display='inline-block';
+      }).getDbUrl();
+      fetchAutoSyncStatus();
+      loadSettingsForWorkflow();
+      applyPresetToInputs();
+    }
+
+    function openSettings(){ document.getElementById('settingsModal').style.display='block'; }
+    function loadSettingsForWorkflow(){
+      const wf = document.getElementById('settingsWorkflowSelect').value;
+      const current = state.presets[wf] || DEFAULT_PRESETS[wf];
+      document.getElementById('set-qual-tmpl').value = current.quality.tmpl;
+      document.getElementById('set-qual-dest').value = current.quality.dest;
+      document.getElementById('set-pkt-tmpl').value = current.pkt.tmpl;
+      document.getElementById('set-pkt-dest').value = current.pkt.dest;
+    }
+    function saveSettings(){
+      const wf = document.getElementById('settingsWorkflowSelect').value;
+      state.presets[wf] = {
+        quality:{tmpl:document.getElementById('set-qual-tmpl').value,dest:document.getElementById('set-qual-dest').value},
+        pkt:{tmpl:document.getElementById('set-pkt-tmpl').value,dest:document.getElementById('set-pkt-dest').value}
+      };
+      saveStored('mock-presets',state.presets);
+      applyPresetToInputs();
+      closeModal('settingsModal');
+      showToast('Workflow preset configuration saved.','success');
+    }
+    function resetSettings(){ state.presets = JSON.parse(JSON.stringify(DEFAULT_PRESETS)); saveStored('mock-presets',state.presets); loadSettingsForWorkflow(); applyPresetToInputs(); showToast('Defaults restored.','info'); }
+    function fetchAutoSyncStatus(){ google.script.run.withSuccessHandler(isActive => {
+      const btn=document.getElementById('autoSyncBtn'); btn.dataset.active=isActive?'true':'false'; btn.textContent=isActive?'🟢 AUTO-SYNC: ON (30 min)':'⚪ AUTO-SYNC: OFF';
+    }).getAutoSyncStatus(); }
+    function toggleAutoSyncUI(){ const newState = document.getElementById('autoSyncBtn').dataset.active !== 'true'; google.script.run.withSuccessHandler(res => { fetchAutoSyncStatus(); showToast(res.msg,res.active?'success':'info'); }).toggleAutoSync(newState); }
+    function startDbSync(){ document.getElementById('startSyncBtn').disabled=true; document.getElementById('syncStatus').textContent='Analyzing mock inbox threads...'; runSyncBatch(0); }
+    function runSyncBatch(offset){ google.script.run.withSuccessHandler(res => { document.getElementById('syncStatus').textContent = res.done ? '✅ Completed! Analyzed ' + res.totalProcessed + ' mock threads.' : 'Sync in progress... ' + res.totalProcessed + ' processed'; if(res.done){ document.getElementById('startSyncBtn').disabled=false; loadBugCache(); showToast('Historical database permanently updated (mock).','success'); } else { runSyncBatch(res.nextOffset); } }).syncBugBatch(offset); }
+
+    function getSelectedWorkflow(){ return document.getElementById('workflowFilter').value; }
+    function setPreset(preset,event){ state.currentPreset=preset; document.querySelectorAll('.preset-item').forEach(el=>el.classList.toggle('active',el.dataset.preset===preset)); applyPresetToInputs(); if(event) event.preventDefault(); }
+    function applyPresetToInputs(){
+      const wf = getSelectedWorkflow()==='ALL' ? 'WF_ALPHA' : getSelectedWorkflow();
+      const source = state.presets[wf] || DEFAULT_PRESETS[wf] || DEFAULT_PRESETS.WF_ALPHA;
+      document.getElementById('templateId').value = source[state.currentPreset].tmpl;
+      document.getElementById('destId').value = source[state.currentPreset].dest;
+    }
+
+    function fetchExistingSlides(){ google.script.run.withSuccessHandler(res => { if(res.success){ state.slideSignatures = res.signatures; renderLocalTable(); renderGeneratedDecks(); } }).getSlideSignatures(document.getElementById('destId').value); }
+    function connectSheet(){
+      loader(true);
+      google.script.run.withSuccessHandler(res => {
+        loader(false);
+        if(!res.success) return showToast('Error connecting to mock sheet.','error');
+        state.tabs = res.metadata;
+        const sel = document.getElementById('tabSelect');
+        sel.innerHTML='';
+        res.metadata.forEach((m,i)=> sel.innerHTML += '<option value="'+i+'">'+m.name+' • '+m.rows+' rows</option>');
+        document.getElementById('configArea').style.display='block';
+        syncTabWithWorkflow();
+        onTabChange(false);
+        showToast('Mock sheet connected.','success');
+      }).getSheetMetadata(document.getElementById('sourceId').value);
+    }
+    function syncTabWithWorkflow(){
+      const wf = getSelectedWorkflow(); const sel = document.getElementById('tabSelect');
+      if(wf==='ALL'){ sel.value = '0'; return; }
+      const idx = state.tabs.findIndex(t => t.workflow === wf); if(idx >= 0) sel.value = String(idx);
+    }
+    function onWorkflowFilterChange(){ applyPresetToInputs(); if(state.tabs.length){ syncTabWithWorkflow(); onTabChange(false); } }
+    function onTabChange(isUserAction){
+      const idx=document.getElementById('tabSelect').value; if(idx==='' || !state.tabs[idx]) return;
+      loader(true);
+      google.script.run.withSuccessHandler(res => {
+        loader(false);
+        document.getElementById('headerRow').value = (res.success && res.config ? res.config.headerRow : 1);
+        state.pendingMap = res.success && res.config ? res.config.mapping : null;
+        fetchHeaders(!!isUserAction);
+      }).loadSheetConfig({spreadsheetId:document.getElementById('sourceId').value,sheetName:state.tabs[idx].name});
+    }
+    function onMappingChange(){ saveCurrentConfig(); }
+    function saveCurrentConfig(){
+      const idx=document.getElementById('tabSelect').value; if(idx==='' || !state.tabs[idx]) return;
+      const mapping={}; document.querySelectorAll('.col-map').forEach(el=> mapping[el.dataset.field]=el.value);
+      google.script.run.saveSheetConfig({spreadsheetId:document.getElementById('sourceId').value,sheetName:state.tabs[idx].name,headerRow:document.getElementById('headerRow').value,mapping:mapping});
+    }
+    function fetchHeaders(){
+      const idx=document.getElementById('tabSelect').value; if(idx==='' || !state.tabs[idx]) return;
+      google.script.run.withSuccessHandler(res => {
+        if(res.success){ state.headers = res.headers; updateMaps(); loadTable(0); }
+      }).getSheetHeaders({spreadsheetId:document.getElementById('sourceId').value,sheetName:state.tabs[idx].name,headerRow:document.getElementById('headerRow').value});
+    }
+    function updateMaps(){
+      const mapping = state.pendingMap || {user:'user',bot:'bot',explanation:'explanation',description:'description'};
+      document.querySelectorAll('.col-map').forEach(select => {
+        select.innerHTML = state.headers.map(h => '<option value="'+h+'">'+h+'</option>').join('');
+        select.value = mapping[select.dataset.field] || state.headers[0] || '';
+      });
+      saveCurrentConfig();
+      buildColumnManager();
+    }
+    function getCurrentSheetName(){ const idx=document.getElementById('tabSelect').value; return state.tabs[idx] ? state.tabs[idx].name : null; }
+    function loadTable(page){
+      const sheetName = getCurrentSheetName(); if(!sheetName) return;
+      loader(true);
+      google.script.run.withSuccessHandler(res => {
+        loader(false);
+        if(res.success){ state.fullData = res.data; state.currentPage = page || 0; state.cachedSheet = sheetName; renderLocalTable(); }
+      }).fetchFullSheetData({spreadsheetId:document.getElementById('sourceId').value,sheetName:sheetName,headerRow:document.getElementById('headerRow').value});
+    }
+    function forceRefresh(){ loadTable(state.currentPage); showToast('Mock data refreshed.','info'); }
+    function getFilteredData(){
+      const wf = getSelectedWorkflow();
+      return state.fullData.filter(row => wf==='ALL' || row.workflow===wf);
+    }
+    function renderLocalTable(){
+      const head=document.getElementById('tHead'); const body=document.getElementById('tBody');
+      const cols = state.visibleColumns.filter(c => state.headers.includes(c));
+      if(!cols.length){ body.innerHTML='<tr><td class="empty-state">No visible columns selected.</td></tr>'; return; }
+      head.innerHTML = cols.map(c => '<th>'+c.replace(/([A-Z])/g,' $1').toUpperCase()+'</th>').join('');
+      const filtered=getFilteredData();
+      const maxPage=Math.max(0,Math.ceil(filtered.length/state.rowsPerPage)-1); if(state.currentPage>maxPage) state.currentPage=maxPage;
+      const start=state.currentPage*state.rowsPerPage; const rows=filtered.slice(start,start+state.rowsPerPage);
+      document.getElementById('tableInfo').textContent = 'Rows ' + (filtered.length?start+1:0) + '-' + Math.min(start+state.rowsPerPage,filtered.length) + ' / ' + filtered.length + ' • ' + (getCurrentSheetName()||'No sheet');
+      if(!rows.length){ body.innerHTML='<tr><td colspan="'+cols.length+'" class="empty-state">No rows to display.</td></tr>'; return; }
+      body.innerHTML = rows.map(row => {
+        const selected = state.selectedCase && state.selectedCase.caseId===row.caseId ? 'row-selected' : '';
+        const inDeck = state.slideSignatures.includes(row.caseId) ? 'row-in-deck' : '';
+        const cells = cols.map(col => {
+          let value = row[col];
+          if(col==='severity') value = '<span class="badge '+(row.severity==='HIGH'?'bad':row.severity==='MEDIUM'?'warn':'good')+'">'+row.severity+'</span>';
+          else if(col==='status') value = '<span class="badge '+(row.status==='Open' || row.status==='Escalated' ? 'info' : row.status==='Resolved' ? 'good' : 'warn')+'">'+escapeHTML(row.status)+'</span>';
+          else value = escapeHTML(value);
+          return '<td>'+value+'</td>';
+        }).join('');
+        return '<tr class="'+selected+' '+inDeck+'" onclick="toggleRow(\''+row.caseId+'\')" ondblclick="openCaseInspectorById(\''+row.caseId+'\')">'+cells+'</tr>';
+      }).join('');
+    }
+    function changePage(delta){ state.currentPage = Math.max(0,state.currentPage+delta); renderLocalTable(); }
+    function findCase(caseId){ return MOCK_SHEETS.flatMap(s=>s.rows).find(r=>r.caseId===caseId) || state.cart.find(r=>r.caseId===caseId); }
+    function toggleRow(caseId){ const row = findCase(caseId); if(!row) return; state.selectedCase = JSON.parse(JSON.stringify(row)); populateInputs(state.selectedCase); document.getElementById('rowDisp').value = row.caseId + ' • ' + row.severity + ' • ' + row.status; renderLocalTable(); }
+    function populateInputs(row){ document.getElementById('val-user').value = row.user || ''; document.getElementById('val-bot').value = row.bot || ''; document.getElementById('val-explanation').value = row.explanation || ''; document.getElementById('val-description').value = row.description || ''; }
+    function readCurrentInputs(){
+      const base = state.selectedCase ? JSON.parse(JSON.stringify(state.selectedCase)) : {caseId:'MANUAL-'+Math.floor(Math.random()*9999),workflow:getSelectedWorkflow()==='ALL'?'WF_ALPHA':getSelectedWorkflow(),subject:'Manual slide draft',severity:'LOW',status:'Draft',owner:'Analyst',updated:new Date().toISOString().slice(0,10),slideHint:'Manual draft'};
+      base.user=document.getElementById('val-user').value; base.bot=document.getElementById('val-bot').value; base.explanation=document.getElementById('val-explanation').value; base.description=document.getElementById('val-description').value;
+      return base;
+    }
+    function addCurrentToBatch(){ const item = readCurrentInputs(); state.cart.push(item); updateCartUI(); showToast('Slide added to mock batch.','success'); }
+    function addNewBlankSlide(){ state.selectedCase = null; document.getElementById('rowDisp').value = 'MANUAL DRAFT'; populateInputs({user:'',bot:'',explanation:'',description:''}); showToast('Blank slide draft ready.','info'); renderLocalTable(); }
+    function removeCartItem(idx){ state.cart.splice(idx,1); updateCartUI(); }
+    function clearCart(){ state.cart=[]; updateCartUI(); document.getElementById('status').textContent='Batch cleared.'; }
+    function updateCartUI(){
+      const wrap=document.getElementById('cartView'); const list=document.getElementById('cartList');
+      wrap.style.display = state.cart.length ? 'flex' : 'none';
+      list.innerHTML = state.cart.map((item,idx)=>'<div class="cart-item"><div><strong>'+(item.caseId||'MANUAL')+'</strong><div class="muted">'+escapeHTML(item.subject || item.slideHint || 'Manual slide')+'</div></div><div class="cart-actions"><button class="cart-action-btn" onclick="loadCartItem('+idx+')">EDIT</button><button class="cart-action-btn" onclick="removeCartItem('+idx+')">✕</button></div></div>').join('');
+      if(!state.cart.length) list.innerHTML='';
+    }
+    function loadCartItem(idx){ const item = state.cart[idx]; if(!item) return; state.selectedCase = JSON.parse(JSON.stringify(item)); populateInputs(item); document.getElementById('rowDisp').value = (item.caseId || 'MANUAL') + ' • IN BATCH'; showToast('Loaded batch item into editor.','info'); }
+    function generate(){
+      const items = state.cart.length ? state.cart.slice() : [readCurrentInputs()];
+      const payload = {items:items,preset:state.currentPreset,date:document.getElementById('slideDate').value || new Date().toISOString().slice(0,10),templateId:document.getElementById('templateId').value,destId:document.getElementById('destId').value,single:items[0]};
+      const btn=document.getElementById('genBtn'); btn.disabled=true; loader(true); document.getElementById('status').textContent='Generating mock deck...';
+      google.script.run.withSuccessHandler(res => {
+        btn.disabled=false; loader(false);
+        if(res.success){
+          document.getElementById('status').innerHTML = '<a href="'+res.url+'" target="_blank" style="color:var(--primary);font-weight:800;text-decoration:none">✅ '+res.count+' MOCK SLIDES GENERATED</a>';
+          state.slideSignatures = state.generatedDecks.flatMap(d=>d.slides.map(s=>s.caseId));
+          renderGeneratedDecks(); renderLocalTable();
+          openGeneratedInspector(res);
+          clearCart();
+          showToast('Slides generated successfully.','success');
+        } else { document.getElementById('status').textContent='Generation failed.'; showToast('Generation failed.','error'); }
+      }).generateSlides(payload);
+    }
+    function renderGeneratedDecks(){
+      const wrap=document.getElementById('recentDecks');
+      if(!state.generatedDecks.length){ wrap.innerHTML='<div class="empty-state">No generated slides yet.</div>'; return; }
+      wrap.innerHTML = state.generatedDecks.map(deck => '<div class="deck-chip"><a href="'+deck.url+'" target="_blank">'+deck.slides.length+' slides • '+deck.preset.toUpperCase()+'</a><small>'+deck.date+' • '+new Date(deck.createdAt).toLocaleTimeString()+'</small></div>').join('');
+    }
+    function handleSearch(event){ if(event.key !== 'Enter') return; const q = event.target.value.trim(); if(!q) return; loader(true); google.script.run.withSuccessHandler(res => { loader(false); if(!res.success || !res.results.length){ showToast('No results found.','info'); return; } const match=res.results[0]; const tabIdx = state.tabs.findIndex(t=>t.name===match.sheetName); if(tabIdx>=0){ document.getElementById('tabSelect').value=String(tabIdx); state.currentPage=0; onTabChange(false); setTimeout(()=>{ toggleRow(match.caseId); openCaseInspectorById(match.caseId); },500); showToast('Jumped to '+match.caseId+'.','success'); } }).searchGlobalFast({query:q,spreadsheetId:document.getElementById('sourceId').value}); }
+
+    function verdictBadge(row){ return row.severity==='HIGH' ? '<span class="badge bad">HIGH RISK</span>' : row.severity==='MEDIUM' ? '<span class="badge warn">MEDIUM RISK</span>' : '<span class="badge good">LOW RISK</span>'; }
+    function openSelectedCaseInspector(){ const row = state.selectedCase || readCurrentInputs(); openCaseInspector(row); }
+    function openCaseInspectorById(caseId){ const row=findCase(caseId); if(row) openCaseInspector(row); }
+    function openCaseInspector(row){
+      const html = '<div class="case-summary-card"><div class="case-summary-header"><div class="case-title">'+escapeHTML(row.caseId || 'MANUAL DRAFT')+' — '+escapeHTML(row.subject || 'Manual slide')+'</div>'+verdictBadge(row)+'</div><div class="case-desc">'+escapeHTML(row.description || 'No description provided.')+'</div><div class="case-meta"><span>Workflow: '+escapeHTML(row.workflow || 'MANUAL')+'</span><span>Status: '+escapeHTML(row.status || 'Draft')+'</span><span>Owner: '+escapeHTML(row.owner || 'Analyst')+'</span><span>Updated: '+escapeHTML(row.updated || new Date().toISOString().slice(0,10))+'</span></div></div>'+
+      '<div class="detail-grid">'+
+      '<div class="mini-panel"><div class="section-title">User Context</div><div class="codebox">'+escapeHTML(row.user || '')+'</div></div>'+
+      '<div class="mini-panel"><div class="section-title">Bot Output</div><div class="codebox">'+escapeHTML(row.bot || '')+'</div></div>'+
+      '<div class="mini-panel"><div class="section-title">Logic / Explanation</div><div class="codebox">'+escapeHTML(row.explanation || '')+'</div></div>'+
+      '<div class="mini-panel"><div class="section-title">Tags / Notes</div><div class="codebox">'+escapeHTML((row.tags || '') + '\n\n' + (row.slideHint || ''))+'</div></div>'+
+      '</div>';
+      document.getElementById('inspectorContent').innerHTML = html;
+      document.getElementById('inspectorModal').style.display='block';
+    }
+    function openGeneratedInspector(res){
+      document.getElementById('inspectorContent').innerHTML = '<div class="generated-card"><div class="case-summary-header"><div class="case-title">Generated Mock Deck</div><span class="badge good">'+res.count+' SLIDES</span></div><div class="case-desc">Preset: <strong>'+state.currentPreset.toUpperCase()+'</strong> • Date: <strong>'+(document.getElementById('slideDate').value || new Date().toISOString().slice(0,10))+'</strong></div></div>' + res.slides.map(slide => '<div class="generated-card"><div class="case-summary-header"><div class="case-title">#'+slide.slideNumber+' — '+escapeHTML(slide.title)+'</div><span class="badge info">'+escapeHTML(slide.workflow)+'</span></div><div class="codebox">'+escapeHTML(slide.bullets.join('\n\n'))+'</div><div class="case-meta"><span>'+escapeHTML(slide.footer)+'</span><span>Case: '+escapeHTML(slide.caseId)+'</span></div></div>').join('');
+      document.getElementById('inspectorModal').style.display='block';
+    }
+
+    function openColumnManager(){ buildColumnManager(); document.getElementById('columnModal').style.display='block'; }
+    function buildColumnManager(){
+      const host=document.getElementById('colManagerList');
+      host.innerHTML = state.headers.map(col => '<label class="col-toggle-item"><input type="checkbox" '+(state.visibleColumns.includes(col)?'checked':'')+' onchange="toggleColumnState(\''+col+'\',this.checked)"><span>'+escapeHTML(col)+'</span></label>').join('');
+    }
+    function toggleColumnState(col,checked){ if(checked && !state.visibleColumns.includes(col)) state.visibleColumns.push(col); if(!checked) state.visibleColumns = state.visibleColumns.filter(c=>c!==col); renderLocalTable(); }
+    function toggleAllColumns(flag){ state.visibleColumns = flag ? state.headers.slice() : []; buildColumnManager(); renderLocalTable(); }
+
+    document.addEventListener('keydown', e => { if(e.key==='Escape'){ closeModal('settingsModal'); closeModal('columnModal'); closeModal('inspectorModal'); } });
+    document.addEventListener('DOMContentLoaded', () => {
+      initAnimation();
+      document.getElementById('slideDate').value = new Date().toISOString().slice(0,10);
+      initSettings();
+      loadBugCache();
+      connectSheet();
+      renderGeneratedDecks();
+    });
+  </script>
+</body>
+</html>

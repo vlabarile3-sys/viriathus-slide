@@ -1,22 +1,37 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Viriathus Slide - Demo</title>
-  <style>body{font-family:Arial,sans-serif;max-width:800px;margin:40px auto;padding:0 16px;line-height:1.5}.box{border:1px solid #ddd;border-radius:10px;padding:16px}code{background:#f4f4f4;padding:2px 6px;border-radius:4px}</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Viriathus Slide — Live Interactive Demo</title>
+  <style>
+    :root{--bg:#111827;--panel:#182132;--text:#e5e7eb;--muted:#94a3b8;--accent:#dcd2a6;--border:rgba(220,210,166,.28)}
+    *{box-sizing:border-box} body{margin:0;min-height:100vh;display:grid;place-items:center;background:radial-gradient(circle at top,#1f2937 0,#111827 55%,#0b1020 100%);font-family:Inter,Segoe UI,Arial,sans-serif;color:var(--text);padding:24px}
+    .card{max-width:760px;width:100%;background:rgba(24,33,50,.9);border:1px solid var(--border);border-radius:24px;padding:36px;box-shadow:0 20px 60px rgba(0,0,0,.35)}
+    .badge{display:inline-block;padding:6px 10px;border-radius:999px;background:rgba(220,210,166,.14);color:var(--accent);font-weight:800;font-size:.72rem;letter-spacing:.8px}
+    h1{font-size:clamp(2rem,4vw,3rem);margin:14px 0 12px} p{color:var(--muted);line-height:1.65;font-size:1rem}
+    .actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:24px}.btn{display:inline-flex;align-items:center;justify-content:center;padding:14px 18px;border-radius:14px;text-decoration:none;font-weight:800}
+    .primary{background:var(--accent);color:#111827}.secondary{border:1px solid var(--border);color:var(--text);background:rgba(255,255,255,.03)}
+    ul{color:var(--muted);line-height:1.8;padding-left:18px}
+  </style>
+  <script>
+    setTimeout(function(){ window.location.href='demo.html'; }, 1800);
+  </script>
 </head>
 <body>
-  <h1>Viriathus Slide (Mock Demo)</h1>
-  <div class="box">
-    <p>Public landing page for portfolio preview.</p>
+  <div class="card">
+    <span class="badge">LIVE INTERACTIVE DEMO</span>
+    <h1>Viriathus Slide static mock is ready.</h1>
+    <p>This landing page redirects to a fully self-contained interactive demo that replicates the Google Apps Script dashboard UI/UX with local mock data only.</p>
     <ul>
-      <li><code>Code.gs</code></li>
-      <li><code>Index.html</code></li>
-      <li><code>Stylesheet.html</code></li>
-      <li><code>Script.html</code></li>
+      <li>Browse WF_ALPHA and WF_BETA mock cases</li>
+      <li>Open structured case details and inspect content</li>
+      <li>Stage multiple items and generate mock slide output</li>
     </ul>
-    <p><a href="https://github.com/vlabarile3-sys/viriathus-slide" target="_blank" rel="noopener">Open repository</a></p>
+    <div class="actions">
+      <a class="btn primary" href="demo.html">Open Live Interactive Demo</a>
+      <a class="btn secondary" href="https://github.com/vlabarile3-sys/viriathus-slide" target="_blank" rel="noopener">View Repository</a>
+    </div>
   </div>
 </body>
 </html>
